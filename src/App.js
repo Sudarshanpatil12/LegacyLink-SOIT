@@ -1,5 +1,5 @@
 // src/App.js
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import Header from './components/Header';
@@ -16,10 +16,23 @@ import AdminPanel from './components/AdminPanel';
 import Gallery from './components/Gallery';
 import Faculty from './components/Faculty';
 import LinkedInCallback from './components/LinkedInCallback';
+import LoadingPage from './components/LoadingPage';
 
 function App() {
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Simulate initial app loading
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
     <AuthProvider>
+      <LoadingPage isLoading={isLoading} />
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
         <Header />
         <main style={{ flex: 1 }}>
