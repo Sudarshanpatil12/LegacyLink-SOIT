@@ -33,7 +33,8 @@ const Header = () => {
   // Check screen size for mobile/tablet
   useEffect(() => {
     const checkScreenSize = () => {
-      setIsMobile(window.innerWidth <= 1024);
+      // treat <=768px as mobile; tablets (<=1024) will show top bar
+      setIsMobile(window.innerWidth <= 768);
     };
 
     checkScreenSize();
@@ -776,6 +777,21 @@ const Header = () => {
               Contact
             </Link>
           </li>
+          {/* Show auth actions in mobile menu when not logged in */}
+          {!currentUser && !isAdminLoggedIn && (
+            <>
+              <li>
+                <Link to="/login" style={getNavLinkStyle('/login')} onClick={closeMobileMenu}>
+                  Login
+                </Link>
+              </li>
+              <li>
+                <Link to="/register" style={getNavLinkStyle('/register')} onClick={closeMobileMenu}>
+                  Register
+                </Link>
+              </li>
+            </>
+          )}
         </ul>
       </nav>
     </header>
