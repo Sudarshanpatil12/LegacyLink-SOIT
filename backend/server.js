@@ -17,8 +17,10 @@ const { errorHandler } = require('./middleware/errorHandler');
 const app = express();
 
 // Middleware
+// During development allow all origins to simplify local testing.
+// In production, restrict to the configured FRONTEND_URL.
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: process.env.NODE_ENV === 'production' ? (process.env.FRONTEND_URL || 'http://localhost:3000') : true,
   credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));
@@ -53,6 +55,11 @@ app.get('/api/health', (req, res) => {
     message: 'RGPV Alumni API is running',
     timestamp: new Date().toISOString()
   });
+});
+
+// Root endpoint (helpful for quick browser checks)
+app.get('/', (req, res) => {
+  res.send(`<h2>RGPV Alumni API</h2><p>Server is running. Use <a href="/api/health">/api/health</a> for a JSON status.</p>`);
 });
 
 // Error handling middleware

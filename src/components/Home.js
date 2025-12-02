@@ -25,7 +25,7 @@ const Home = () => {
       image: "/images/rgpv1.png",
     },
     {
-      id: 3,
+      id: 4,
       title: "Welcome to SOIT RGPV, Bhopal",
       subtitle: "Empowering Minds. Building Futures.",
       image: "/faculty/faculty.jpg",
@@ -123,7 +123,7 @@ const Home = () => {
 const alumniData = [
   {
     id: "1",
-    name: "Harshay Bairagi",
+    name: "Harshay  Bairagi",
     email: "harshay.bairagi@example.com",
     graduationYear: 2025,
     department: "CSE",

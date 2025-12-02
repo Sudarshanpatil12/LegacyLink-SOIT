@@ -34,6 +34,8 @@ const LoadingPage = ({ isLoading }) => {
             alt="SOIT Logo"
             style={styles.logo}
           />
+                   
+
           <h1 style={styles.title}>Legacy Link - SOIT</h1>
           <h2 style={styles.title}>RGPV</h2>
           <div style={styles.loadingText}>
@@ -55,7 +57,7 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#bcd9e2ff',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',

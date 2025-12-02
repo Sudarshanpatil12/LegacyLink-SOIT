@@ -61,7 +61,7 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // Create new alumni
+    // Create new alumni (auto-approve so users are immediately visible/active)
     const alumni = new Alumni({
       name,
       email,
@@ -75,7 +75,9 @@ router.post('/register', async (req, res) => {
       linkedinUrl,
       skills,
       achievements,
-      status: 'pending'
+      // set to approved so any user can register and appear in directory
+      status: 'approved',
+      isVerified: true
     });
 
     await alumni.save();
@@ -89,7 +91,7 @@ router.post('/register', async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Registration successful. Your account is pending approval.',
+      message: 'Registration successful. Your account is active.',
       token,
       alumni: alumni.getPublicProfile()
     });

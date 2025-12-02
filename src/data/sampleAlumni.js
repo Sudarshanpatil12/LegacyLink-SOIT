@@ -46,7 +46,7 @@ export const sampleAlumni = [
     linkedinUrl: "https://linkedin.com/in/nilesh", // Assuming nilesh.png is for Shubham/Nilesh
     location: "Mumbai, India",
     bio: "Leading digital transformation projects with focus on innovation and data-driven decision making.",
-    profileImage: "/alumni/nilesh.png", // <--- UPDATED (Used nilesh.png)
+    profileImage: "/alumni/d.png", // <--- UPDATED (Used nilesh.png)
     status: "approved",
     registrationDate: "2023-03-05"
   },
@@ -243,6 +243,23 @@ export const sampleAlumni = [
     registrationDate: "2023-07-19"
   },
   {
+  id: "27",
+  name: "Nilesh Dhakad",
+  email: "nilesh.dhakad@example.com",
+  mobile: "+91 9876538765",
+  graduationYear: 2026,
+  department: "Mechanical Engineering (ME)",
+  jobTitle: "Automotive Design Engineer",
+  company: "Mahindra & Mahindra",
+  linkedinUrl: "https://linkedin.com/in/nileshdhakad",
+  location: "Indore, India",
+  bio: "Automotive enthusiast working on CAD modeling, vehicle dynamics, and design optimization.",
+  profileImage: "/alumni/nilesh.png",
+  status: "approved",
+  registrationDate: "2024-08-18"
+}
+,
+  {
     id: "16",
     name: "Sudarshan Patil",
     email: "sudarshan.patil@example.com",
@@ -369,5 +386,54 @@ export const sampleAlumni = [
     profileImage: "/alumni/yati.png", // <--- ASSIGNED (Using yati.png)
     status: "approved",
     registrationDate: "2024-08-05"
-  }
+  },
+  {
+  id: "24",
+  name: "Sankalp Pandey",
+  email: "sankalp.pandey@example.com",
+  mobile: "+91 9876501123",
+  graduationYear: 2026,
+  department: "Information Technology (IT)",
+  jobTitle: "Full Stack Developer",
+  company: "Tata Consultancy Services",
+  linkedinUrl: "https://linkedin.com/in/sankalppandey",
+  location: "Bhopal, India",
+  bio: "Passionate developer specializing in MERN stack and cloud-native applications.",
+  profileImage: "/alumni/sankalp.png",
+  status: "approved",
+  registrationDate: "2024-09-12"
+},
+{
+  id: "25",
+  name: "Yash Sharma",
+  email: "yash.sharma@example.com",
+  mobile: "+91 9876523451",
+  graduationYear: 2025,
+  department: "Computer Science Engineering (CSE)",
+  jobTitle: "Machine Learning Engineer",
+  company: "Google",
+  linkedinUrl: "https://linkedin.com/in/yashsharma",
+  location: "Bangalore, India",
+  bio: "ML engineer working on model optimization and generative AI research.",
+  profileImage: "/alumni/yash.png",
+  status: "approved",
+  registrationDate: "2024-07-20"
+},
+{
+  id: "26",
+  name: "Satyam Bairagi",
+  email: "satyam.bairagi@example.com",
+  mobile: "+91 9876512349",
+  graduationYear: 2027,
+  department: "Electronics & Communication Engineering (ECE)",
+  jobTitle: "Embedded Systems Engineer",
+  company: "Bosch",
+  linkedinUrl: "https://linkedin.com/in/satyambairagi",
+  location: "Pune, India",
+  bio: "Focused on IoT firmware, microcontrollers, and real-time embedded applications.",
+  profileImage: "/alumni/satyam.png",
+  status: "approved",
+  registrationDate: "2024-10-02"
+}
+
 ];
