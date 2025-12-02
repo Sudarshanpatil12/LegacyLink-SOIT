@@ -367,7 +367,7 @@ export const sampleAlumni = [
     linkedinUrl: "https://linkedin.com/in/soumyaramaria",
     location: "Noida, India",
     bio: "Designing intuitive and user-friendly product interfaces.",
-    profileImage: "/alumni/22.png", // Keeping original generic path
+    profileImage: "/alumni/soumya.png", // Keeping original generic path
     status: "approved",
     registrationDate: "2024-07-10"
   },
