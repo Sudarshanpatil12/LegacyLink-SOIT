@@ -1,144 +1,229 @@
 // src/components/AdminPanel.js
-import React, { useState, useEffect } from 'react';
-import { 
-  Search, CheckCircle, XCircle, Eye, Mail, Download, Edit, 
-  Save, X, Trash2, Users, AlertCircle, Check, Loader 
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  Search, CheckCircle, XCircle, Eye, Mail, Download, Edit,
+  Save, X, Trash2, Users, AlertCircle, Check, Loader, Filter,
+  Calendar, Clock, UserPlus, SortDesc, SortAsc, Bell, RefreshCw,
+  BarChart3, FileText, Shield, Settings, Database, EyeOff,
+  Send, MessageSquare, Upload, Image, Lock, Unlock, Award,
+  TrendingUp, PieChart, CreditCard, Globe, Target, Zap,
+  ExternalLink, ChevronDown, ChevronUp, CheckSquare, Square,
+  Building, GraduationCap, Briefcase, MapPin
 } from 'lucide-react';
-
-// Using a placeholder sampleAlumni as it's not provided
-const sampleAlumni = [
-  { 
-    id: '1', 
-    name: 'Admin Sample User', 
-    email: 'admin.sample@test.com', 
-    mobile: '1234567890',
-    graduationYear: 2020, 
-    department: 'CS & Business Systems (CSBS)', 
-    jobTitle: 'Software Architect', 
-    company: 'TechCorp Solutions', 
-    location: 'San Jose, CA', 
-    linkedinUrl: 'https://linkedin.com/in/adminsample', 
-    bio: 'Experienced architect specializing in scalable cloud applications and machine learning integration.', 
-    status: 'approved', 
-    registrationDate: '2025-10-01', 
-    profileImage: null 
-  },
-  {
-    id: '2', 
-    name: 'Pending Alum', 
-    email: 'pending.alum@example.com', 
-    mobile: '9876543210',
-    graduationYear: 2024, 
-    department: 'AI & Machine Learning (AIML)', 
-    jobTitle: 'Data Analyst', 
-    company: 'Startup X', 
-    location: 'Remote', 
-    linkedinUrl: '', 
-    bio: 'Fresh graduate eager to contribute to cutting-edge AI projects and data modeling.', 
-    status: 'pending', 
-    registrationDate: '2025-11-05', 
-    profileImage: null 
-  }
-];
-
+import { sampleAlumni } from '../data/sampleAlumni';
 
 const AdminPanel = () => {
+  // State management
   const [alumniData, setAlumniData] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterDepartment, setFilterDepartment] = useState('');
-  const [filterStatus, setFilterStatus] = useState('pending'); // Default to pending
+  const [filters, setFilters] = useState({
+    department: '',
+    status: '',
+    graduationYear: '',
+  });
+  const [sortConfig, setSortConfig] = useState({ key: 'registrationDate', direction: 'desc' });
   const [selectedAlumni, setSelectedAlumni] = useState(null);
   const [editingAlumni, setEditingAlumni] = useState(null);
   const [editFormData, setEditFormData] = useState({});
   const [deleteConfirm, setDeleteConfirm] = useState(null);
-  const [notification, setNotification] = useState(null); // { message: '', type: 'success' | 'error' }
-  const [lightboxImage, setLightboxImage] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [notification, setNotification] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('registrations');
+  const [bulkSelection, setBulkSelection] = useState([]);
+  const [showExportOptions, setShowExportOptions] = useState(false);
+  const [departmentOptions, setDepartmentOptions] = useState([]);
+  const [yearOptions, setYearOptions] = useState([]);
 
-  // --- Utility Functions ---
-
-  const generateAvatarUrl = (name) => {
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=3b82f6&color=fff&size=48`;
-  };
-
-  const loadAlumniData = () => {
-    setIsLoading(true);
-    const storedData = localStorage.getItem('alumniData');
-    if (storedData && storedData !== '[]') {
-      const parsedData = JSON.parse(storedData);
-      setAlumniData(parsedData);
-    } else {
-      // If no data in localStorage, initialize with sample data
-      const alumniWithStatus = sampleAlumni.map(alum => ({
-        ...alum,
-        status: alum.status || 'approved',
-        registrationDate: alum.registrationDate || new Date().toISOString().split('T')[0],
-        profileImage: alum.profileImage || null,
-      }));
-      setAlumniData(alumniWithStatus);
-      localStorage.setItem('alumniData', JSON.stringify(alumniWithStatus));
-    }
-    setTimeout(() => setIsLoading(false), 300); // Simulate network latency
-  };
-
+  // Initialize with sample data
   useEffect(() => {
     loadAlumniData();
   }, []);
 
-  const showNotification = (message, type = 'success') => {
-    setNotification({ message, type });
-    setTimeout(() => {
-      setNotification(null);
-    }, 4000); // Display for 4 seconds
+  // Extract unique departments and years from data
+  useEffect(() => {
+    if (alumniData.length > 0) {
+      const departments = [...new Set(alumniData.map(alum => alum.department))].sort();
+      const years = [...new Set(alumniData.map(alum => alum.graduationYear))].sort((a, b) => b - a);
+      setDepartmentOptions(departments);
+      setYearOptions(years);
+    }
+  }, [alumniData]);
+
+  // Load data from sampleAlumni
+  const loadAlumniData = () => {
+    setIsLoading(true);
+    try {
+      // Start with sample alumni data
+      let data = [...sampleAlumni];
+      
+      // Check localStorage for any updates
+      const storedData = localStorage.getItem('alumniData');
+      if (storedData) {
+        const parsedData = JSON.parse(storedData);
+        if (Array.isArray(parsedData) && parsedData.length > 0) {
+          // Merge sample data with localStorage data
+          const sampleIds = new Set(data.map(d => d.id));
+          const additionalData = parsedData.filter(item => !sampleIds.has(item.id));
+          data = [...data, ...additionalData];
+        }
+      }
+
+      // Ensure all alumni have required fields
+      data = data.map(alum => ({
+        ...alum,
+        status: alum.status || 'approved',
+        registrationDate: alum.registrationDate || new Date().toISOString().split('T')[0],
+        isNew: alum.isNew !== undefined ? alum.isNew : false,
+        verified: alum.verified !== undefined ? alum.verified : true,
+        profileImage: alum.profileImage || null,
+      }));
+
+      setAlumniData(data);
+      setIsLoading(false);
+    } catch (error) {
+      console.error('Error loading data:', error);
+      setIsLoading(false);
+    }
   };
 
-  const departments = [
-    'CS & Business Systems (CSBS)',
-    'AI & Machine Learning (AIML)',
-    'CSE Data Science (CSE-DS)',
-    'Masters',
-    'Computer Science (CSE)',
-    'Electronics & Communication (ECE)',
-    'Mechanical Engineering (ME)',
-    'Information Technology (IT)',
-    'Civil Engineering (CE)',
-  ];
+  // Calculate statistics
+  const stats = useMemo(() => {
+    return {
+      total: alumniData.length,
+      pending: alumniData.filter(d => d.status === 'pending').length,
+      approved: alumniData.filter(d => d.status === 'approved').length,
+      rejected: alumniData.filter(d => d.status === 'rejected').length,
+      new: alumniData.filter(d => d.isNew).length,
+      withImage: alumniData.filter(d => d.profileImage).length,
+      verified: alumniData.filter(d => d.verified).length,
+      departments: departmentOptions.length,
+    };
+  }, [alumniData, departmentOptions]);
 
-  const handleApprove = (alumniId) => {
-    const updatedData = alumniData.map(alumni => 
-      alumni.id === alumniId 
-        ? { 
-            ...alumni, 
-            status: 'approved', 
-            approvedDate: new Date().toISOString().split('T')[0] 
-          }
-        : alumni
+  // Filter and sort data
+  const filteredData = useMemo(() => {
+    let result = [...alumniData];
+
+    // Apply filters
+    if (filters.department) {
+      result = result.filter(item => item.department === filters.department);
+    }
+    if (filters.status) {
+      result = result.filter(item => item.status === filters.status);
+    }
+    if (filters.graduationYear) {
+      result = result.filter(item => item.graduationYear.toString() === filters.graduationYear);
+    }
+
+    // Apply search
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      result = result.filter(item =>
+        item.name?.toLowerCase().includes(term) ||
+        item.email?.toLowerCase().includes(term) ||
+        item.company?.toLowerCase().includes(term) ||
+        item.jobTitle?.toLowerCase().includes(term) ||
+        item.department?.toLowerCase().includes(term)
+      );
+    }
+
+    // Apply sorting
+    result.sort((a, b) => {
+      let aValue = a[sortConfig.key];
+      let bValue = b[sortConfig.key];
+
+      if (sortConfig.key === 'registrationDate') {
+        aValue = new Date(aValue);
+        bValue = new Date(bValue);
+      }
+
+      if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return result;
+  }, [alumniData, filters, searchTerm, sortConfig]);
+
+  // Handle sort
+  const handleSort = (key) => {
+    setSortConfig(prev => ({
+      key,
+      direction: prev.key === key && prev.direction === 'desc' ? 'asc' : 'desc'
+    }));
+  };
+
+  // Bulk actions
+  const toggleBulkSelection = () => {
+    if (bulkSelection.length === filteredData.length) {
+      setBulkSelection([]);
+    } else {
+      setBulkSelection(filteredData.map(item => item.id));
+    }
+  };
+
+  const handleBulkApprove = () => {
+    const updatedData = alumniData.map(item =>
+      bulkSelection.includes(item.id) ? { ...item, status: 'approved', isNew: false } : item
     );
-    
     setAlumniData(updatedData);
-    localStorage.setItem('alumniData', JSON.stringify(updatedData));
-    showNotification('Alumni approved successfully! Now visible in the public directory.', 'success');
+    saveToLocalStorage(updatedData);
+    setBulkSelection([]);
+    showNotification(`${bulkSelection.length} alumni approved`, 'success');
   };
 
-  const handleReject = (alumniId) => {
-    const updatedData = alumniData.map(alumni => 
-      alumni.id === alumniId 
-        ? { ...alumni, status: 'rejected' }
-        : alumni
+  const handleBulkReject = () => {
+    const updatedData = alumniData.map(item =>
+      bulkSelection.includes(item.id) ? { ...item, status: 'rejected', isNew: false } : item
     );
-    
     setAlumniData(updatedData);
-    localStorage.setItem('alumniData', JSON.stringify(updatedData));
-    showNotification('Alumni application rejected.', 'error');
+    saveToLocalStorage(updatedData);
+    setBulkSelection([]);
+    showNotification(`${bulkSelection.length} alumni rejected`, 'error');
   };
 
-  const handleDelete = (alumniId) => {
-    const updatedData = alumniData.filter(alumni => alumni.id !== alumniId);
+  const handleBulkDelete = () => {
+    const updatedData = alumniData.filter(item => !bulkSelection.includes(item.id));
     setAlumniData(updatedData);
-    localStorage.setItem('alumniData', JSON.stringify(updatedData));
+    saveToLocalStorage(updatedData);
+    setBulkSelection([]);
+    showNotification(`${bulkSelection.length} alumni deleted`, 'error');
+  };
+
+  // Single alumni actions
+  const handleApprove = (id) => {
+    const updatedData = alumniData.map(item =>
+      item.id === id ? { ...item, status: 'approved', isNew: false } : item
+    );
+    setAlumniData(updatedData);
+    saveToLocalStorage(updatedData);
+    showNotification('Alumni approved', 'success');
+  };
+
+  const handleReject = (id) => {
+    const updatedData = alumniData.map(item =>
+      item.id === id ? { ...item, status: 'rejected', isNew: false } : item
+    );
+    setAlumniData(updatedData);
+    saveToLocalStorage(updatedData);
+    showNotification('Alumni rejected', 'error');
+  };
+
+  const handleDelete = (id) => {
+    const updatedData = alumniData.filter(item => item.id !== id);
+    setAlumniData(updatedData);
+    saveToLocalStorage(updatedData);
     setDeleteConfirm(null);
-    setSelectedAlumni(null); // Close modal if open
-    showNotification('Alumni profile deleted successfully.', 'error');
+    showNotification('Alumni deleted', 'error');
+  };
+
+  const handleVerify = (id) => {
+    const updatedData = alumniData.map(item =>
+      item.id === id ? { ...item, verified: !item.verified } : item
+    );
+    setAlumniData(updatedData);
+    saveToLocalStorage(updatedData);
+    showNotification('Verification status updated', 'success');
   };
 
   const handleEdit = (alumni) => {
@@ -147,23 +232,19 @@ const AdminPanel = () => {
   };
 
   const handleSaveEdit = () => {
-    // Basic validation for required fields
-    if (!editFormData.name || !editFormData.email || !editFormData.jobTitle) {
-      showNotification('Name, Email, and Job Title are required.', 'error');
+    if (!editFormData.name || !editFormData.email) {
+      showNotification('Name and email are required', 'error');
       return;
     }
 
-    const updatedData = alumniData.map(alumni => 
-      alumni.id === editingAlumni 
-        ? { ...alumni, ...editFormData } // Merge existing data with form data
-        : alumni
+    const updatedData = alumniData.map(item =>
+      item.id === editingAlumni ? { ...item, ...editFormData } : item
     );
-    
     setAlumniData(updatedData);
-    localStorage.setItem('alumniData', JSON.stringify(updatedData));
+    saveToLocalStorage(updatedData);
     setEditingAlumni(null);
     setEditFormData({});
-    showNotification('Alumni information updated successfully!', 'success');
+    showNotification('Changes saved successfully', 'success');
   };
 
   const handleCancelEdit = () => {
@@ -171,903 +252,1649 @@ const AdminPanel = () => {
     setEditFormData({});
   };
 
-  const handleEditChange = (field, value) => {
-    setEditFormData(prev => ({
-      ...prev,
-      [field]: field === 'graduationYear' ? parseInt(value) || '' : value // Ensure year is number
-    }));
+  // Save to localStorage
+  const saveToLocalStorage = (data) => {
+    try {
+      localStorage.setItem('alumniData', JSON.stringify(data));
+    } catch (error) {
+      console.error('Error saving to localStorage:', error);
+    }
   };
 
-  const handleClearFilters = () => {
-    setSearchTerm('');
-    setFilterDepartment('');
-    setFilterStatus(''); 
-  };
+  // Export functions
+  const exportToCSV = (type = 'all') => {
+    let dataToExport = [];
+    
+    switch (type) {
+      case 'all':
+        dataToExport = filteredData;
+        break;
+      case 'approved':
+        dataToExport = filteredData.filter(d => d.status === 'approved');
+        break;
+      case 'pending':
+        dataToExport = filteredData.filter(d => d.status === 'pending');
+        break;
+      default:
+        dataToExport = filteredData;
+    }
 
-  const exportToCSV = () => {
-    const approvedAlumni = alumniData.filter(alumni => alumni.status === 'approved');
-    if (approvedAlumni.length === 0) {
-      showNotification('No approved alumni to export.', 'error');
+    if (dataToExport.length === 0) {
+      showNotification('No data to export', 'error');
       return;
     }
-    const headers = ['Name', 'Email', 'Mobile', 'Graduation Year', 'Department', 'Job Title', 'Company', 'Location', 'Registration Date', 'Approved Date', 'LinkedIn'];
-    const csvData = approvedAlumni.map(alumni => [
-      `"${alumni.name}"`,
-      `"${alumni.email}"`,
-      alumni.mobile,
-      alumni.graduationYear,
-      `"${alumni.department}"`,
-      `"${alumni.jobTitle}"`,
-      `"${alumni.company}"`,
-      `"${alumni.location}"`,
-      alumni.registrationDate,
-      alumni.approvedDate || 'N/A',
-      `"${alumni.linkedinUrl}"`
+
+    const headers = ['Name', 'Email', 'Mobile', 'Department', 'Batch', 'Job Title', 'Company', 'Location', 'Status', 'Registration Date'];
+    const csvData = dataToExport.map(item => [
+      `"${item.name}"`,
+      `"${item.email}"`,
+      `"${item.mobile}"`,
+      `"${item.department}"`,
+      item.graduationYear,
+      `"${item.jobTitle}"`,
+      `"${item.company}"`,
+      `"${item.location}"`,
+      item.status,
+      item.registrationDate
     ]);
-    
+
     const csvContent = [headers, ...csvData].map(row => row.join(',')).join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `approved-alumni-export-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `alumni-${type}-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
-    showNotification(`Exported ${approvedAlumni.length} records to CSV.`, 'success');
+    showNotification(`Exported ${dataToExport.length} records`, 'success');
   };
 
-  const filteredAlumni = alumniData.filter(alumni => {
-    const searchLower = searchTerm.toLowerCase();
-    const matchesSearch = (
-      alumni.name.toLowerCase().includes(searchLower) ||
-      alumni.company.toLowerCase().includes(searchLower) ||
-      alumni.email.toLowerCase().includes(searchLower) ||
-      (alumni.jobTitle && alumni.jobTitle.toLowerCase().includes(searchLower))
+  // Reset filters
+  const resetFilters = () => {
+    setSearchTerm('');
+    setFilters({
+      department: '',
+      status: '',
+      graduationYear: '',
+    });
+    setSortConfig({ key: 'registrationDate', direction: 'desc' });
+    setBulkSelection([]);
+  };
+
+  // Notification system
+  const showNotification = (message, type) => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 4000);
+  };
+
+  // Get status color
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'approved': return { bg: '#dcfce7', text: '#166534', border: '#86efac' };
+      case 'pending': return { bg: '#fef3c7', text: '#d97706', border: '#fcd34d' };
+      case 'rejected': return { bg: '#fee2e2', text: '#dc2626', border: '#fca5a5' };
+      default: return { bg: '#f3f4f6', text: '#6b7280', border: '#d1d5db' };
+    }
+  };
+
+  // Get department abbreviation
+  const getDeptAbbreviation = (department) => {
+    if (!department) return '';
+    const match = department.match(/\(([^)]+)\)/);
+    return match ? match[1] : department.substring(0, 3).toUpperCase();
+  };
+
+  // Analytics Component
+  const AnalyticsTab = () => {
+    // Calculate analytics data
+    const analyticsData = useMemo(() => {
+      const departmentCount = {};
+      const yearCount = {};
+      const companyCount = {};
+      const locationCount = {};
+      const statusCount = { approved: 0, pending: 0, rejected: 0 };
+      const verifiedCount = { verified: 0, notVerified: 0 };
+      
+      alumniData.forEach(alumni => {
+        // Department count
+        departmentCount[alumni.department] = (departmentCount[alumni.department] || 0) + 1;
+        
+        // Year count
+        yearCount[alumni.graduationYear] = (yearCount[alumni.graduationYear] || 0) + 1;
+        
+        // Company count (top 10)
+        companyCount[alumni.company] = (companyCount[alumni.company] || 0) + 1;
+        
+        // Location count
+        locationCount[alumni.location] = (locationCount[alumni.location] || 0) + 1;
+        
+        // Status count
+        statusCount[alumni.status] = (statusCount[alumni.status] || 0) + 1;
+        
+        // Verified count
+        if (alumni.verified) {
+          verifiedCount.verified++;
+        } else {
+          verifiedCount.notVerified++;
+        }
+      });
+
+      // Sort and get top values
+      const topDepartments = Object.entries(departmentCount)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5);
+      
+      const topCompanies = Object.entries(companyCount)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10);
+      
+      const topLocations = Object.entries(locationCount)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10);
+
+      // Year trend
+      const years = Object.keys(yearCount).sort((a, b) => a - b);
+      const yearData = years.map(year => ({
+        year,
+        count: yearCount[year]
+      }));
+
+      return {
+        topDepartments,
+        topCompanies,
+        topLocations,
+        yearData,
+        statusData: Object.entries(statusCount),
+        verifiedData: Object.entries(verifiedCount),
+        totalAlumni: alumniData.length,
+      };
+    }, [alumniData]);
+
+    return (
+      <div style={analyticsStyles.container}>
+        {/* Key Metrics */}
+        <div style={analyticsStyles.metricsGrid}>
+          <div style={analyticsStyles.metricCard}>
+            <div style={{...analyticsStyles.metricIcon, backgroundColor: '#dbeafe', color: '#1d4ed8'}}>
+              <Users size={24} />
+            </div>
+            <div style={analyticsStyles.metricContent}>
+              <div style={analyticsStyles.metricValue}>{analyticsData.totalAlumni}</div>
+              <div style={analyticsStyles.metricLabel}>Total Alumni</div>
+            </div>
+          </div>
+          
+          <div style={analyticsStyles.metricCard}>
+            <div style={{...analyticsStyles.metricIcon, backgroundColor: '#dcfce7', color: '#166534'}}>
+              <Building size={24} />
+            </div>
+            <div style={analyticsStyles.metricContent}>
+              <div style={analyticsStyles.metricValue}>
+                {Object.keys(analyticsData.topCompanies).length}
+              </div>
+              <div style={analyticsStyles.metricLabel}>Companies</div>
+            </div>
+          </div>
+          
+          <div style={analyticsStyles.metricCard}>
+            <div style={{...analyticsStyles.metricIcon, backgroundColor: '#fef3c7', color: '#d97706'}}>
+              <MapPin size={24} />
+            </div>
+            <div style={analyticsStyles.metricContent}>
+              <div style={analyticsStyles.metricValue}>
+                {Object.keys(analyticsData.topLocations).length}
+              </div>
+              <div style={analyticsStyles.metricLabel}>Locations</div>
+            </div>
+          </div>
+          
+          <div style={analyticsStyles.metricCard}>
+            <div style={{...analyticsStyles.metricIcon, backgroundColor: '#f3e8ff', color: '#7c3aed'}}>
+              <GraduationCap size={24} />
+            </div>
+            <div style={analyticsStyles.metricContent}>
+              <div style={analyticsStyles.metricValue}>
+                {Object.keys(analyticsData.topDepartments).length}
+              </div>
+              <div style={analyticsStyles.metricLabel}>Departments</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Charts Grid */}
+        <div style={analyticsStyles.chartsGrid}>
+          {/* Status Distribution */}
+          <div style={analyticsStyles.chartCard}>
+            <div style={analyticsStyles.chartHeader}>
+              <h3 style={analyticsStyles.chartTitle}>Status Distribution</h3>
+              <PieChart size={20} color="#6b7280" />
+            </div>
+            <div style={analyticsStyles.chartContent}>
+              {analyticsData.statusData.map(([status, count]) => {
+                const color = getStatusColor(status);
+                const percentage = ((count / analyticsData.totalAlumni) * 100).toFixed(1);
+                return (
+                  <div key={status} style={analyticsStyles.distributionItem}>
+                    <div style={analyticsStyles.distributionHeader}>
+                      <div style={{...analyticsStyles.distributionColor, backgroundColor: color.bg}} />
+                      <span style={analyticsStyles.distributionLabel}>{status.toUpperCase()}</span>
+                      <span style={analyticsStyles.distributionValue}>{count}</span>
+                    </div>
+                    <div style={analyticsStyles.progressBar}>
+                      <div 
+                        style={{ 
+                          width: `${percentage}%`,
+                          backgroundColor: color.text,
+                          height: '6px',
+                          borderRadius: '3px'
+                        }} 
+                      />
+                    </div>
+                    <div style={analyticsStyles.percentage}>{percentage}%</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Department Distribution */}
+          <div style={analyticsStyles.chartCard}>
+            <div style={analyticsStyles.chartHeader}>
+              <h3 style={analyticsStyles.chartTitle}>Top Departments</h3>
+              <BarChart3 size={20} color="#6b7280" />
+            </div>
+            <div style={analyticsStyles.chartContent}>
+              {analyticsData.topDepartments.map(([dept, count]) => {
+                const percentage = ((count / analyticsData.totalAlumni) * 100).toFixed(1);
+                return (
+                  <div key={dept} style={analyticsStyles.barItem}>
+                    <div style={analyticsStyles.barInfo}>
+                      <span style={analyticsStyles.barLabel}>{dept}</span>
+                      <span style={analyticsStyles.barValue}>{count}</span>
+                    </div>
+                    <div style={analyticsStyles.barContainer}>
+                      <div 
+                        style={{ 
+                          width: `${percentage}%`,
+                          backgroundColor: '#0a4a7a',
+                          height: '24px',
+                          borderRadius: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          paddingLeft: '8px',
+                          color: 'white',
+                          fontSize: '0.8rem',
+                          fontWeight: '500',
+                        }}
+                      >
+                        {percentage}%
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Year-wise Distribution */}
+          <div style={analyticsStyles.chartCard}>
+            <div style={analyticsStyles.chartHeader}>
+              <h3 style={analyticsStyles.chartTitle}>Batch Year Distribution</h3>
+              <TrendingUp size={20} color="#6b7280" />
+            </div>
+            <div style={analyticsStyles.chartContent}>
+              <div style={analyticsStyles.yearChart}>
+                {analyticsData.yearData.map(({ year, count }) => (
+                  <div key={year} style={analyticsStyles.yearBar}>
+                    <div style={analyticsStyles.yearCount}>{count}</div>
+                    <div 
+                      style={{ 
+                        height: `${Math.min(count * 10, 150)}px`,
+                        backgroundColor: '#10b981',
+                        width: '30px',
+                        borderRadius: '4px 4px 0 0',
+                      }} 
+                    />
+                    <div style={analyticsStyles.yearLabel}>{year}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Top Companies */}
+          <div style={analyticsStyles.chartCard}>
+            <div style={analyticsStyles.chartHeader}>
+              <h3 style={analyticsStyles.chartTitle}>Top Companies</h3>
+              <Briefcase size={20} color="#6b7280" />
+            </div>
+            <div style={analyticsStyles.chartContent}>
+              <div style={analyticsStyles.companyList}>
+                {analyticsData.topCompanies.map(([company, count], index) => (
+                  <div key={company} style={analyticsStyles.companyItem}>
+                    <div style={analyticsStyles.companyRank}>{index + 1}</div>
+                    <div style={analyticsStyles.companyInfo}>
+                      <div style={analyticsStyles.companyName}>{company}</div>
+                      <div style={analyticsStyles.companyCount}>{count} alumni</div>
+                    </div>
+                    <div style={analyticsStyles.companyBadge}>
+                      {((count / analyticsData.totalAlumni) * 100).toFixed(0)}%
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Location Distribution */}
+          <div style={{ ...analyticsStyles.chartCard, gridColumn: '1 / -1' }}>
+            <div style={analyticsStyles.chartHeader}>
+              <h3 style={analyticsStyles.chartTitle}>Geographical Distribution</h3>
+              <Globe size={20} color="#6b7280" />
+            </div>
+            <div style={analyticsStyles.chartContent}>
+              <div style={analyticsStyles.locationGrid}>
+                {analyticsData.topLocations.map(([location, count]) => {
+                  const percentage = ((count / analyticsData.totalAlumni) * 100).toFixed(1);
+                  return (
+                    <div key={location} style={analyticsStyles.locationItem}>
+                      <div style={analyticsStyles.locationHeader}>
+                        <MapPin size={16} color="#6b7280" />
+                        <span style={analyticsStyles.locationName}>{location}</span>
+                      </div>
+                      <div style={analyticsStyles.locationStats}>
+                        <span style={analyticsStyles.locationCount}>{count}</span>
+                        <span style={analyticsStyles.locationPercentage}>{percentage}%</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Verification Status */}
+        <div style={analyticsStyles.verificationCard}>
+          <div style={analyticsStyles.chartHeader}>
+            <h3 style={analyticsStyles.chartTitle}>Verification Status</h3>
+            <Shield size={20} color="#6b7280" />
+          </div>
+          <div style={analyticsStyles.verificationContent}>
+            <div style={analyticsStyles.verificationStats}>
+              {analyticsData.verifiedData.map(([status, count]) => (
+                <div key={status} style={analyticsStyles.verificationStat}>
+                  <div style={analyticsStyles.verificationValue}>{count}</div>
+                  <div style={analyticsStyles.verificationLabel}>
+                    {status === 'verified' ? 'Verified' : 'Not Verified'}
+                  </div>
+                  <div style={analyticsStyles.verificationPercentage}>
+                    {((count / analyticsData.totalAlumni) * 100).toFixed(1)}%
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
     );
-    
-    const matchesDept = (filterDepartment === '' || alumni.department === filterDepartment);
-    const matchesStatus = (filterStatus === '' || alumni.status === filterStatus);
-    
-    return matchesSearch && matchesDept && matchesStatus;
-  });
+  };
 
-  const pendingCount = alumniData.filter(a => a.status === 'pending').length;
-  const approvedCount = alumniData.filter(a => a.status === 'approved').length;
-  const rejectedCount = alumniData.filter(a => a.status === 'rejected').length;
-
+  // Styles
   const styles = {
     container: {
       minHeight: '100vh',
       backgroundColor: '#f8fafc',
-      padding: '32px 16px',
       fontFamily: "'Inter', sans-serif",
     },
-    wrapper: {
-      maxWidth: '1280px',
-      margin: '0 auto',
-    },
     header: {
-      backgroundColor: 'white',
-      borderRadius: '12px',
-      padding: '32px',
-      boxShadow: '0 4px 10px rgba(0, 0, 0, 0.05)',
-      marginBottom: '32px',
+      background: 'linear-gradient(135deg, #0a4a7a 0%, #1e6ba8 100%)',
+      color: 'white',
+      padding: '30px 40px',
+      boxShadow: '0 4px 20px rgba(10, 74, 122, 0.2)',
     },
-    headerTop: {
+    headerContent: {
+      maxWidth: '1400px',
+      margin: '0 auto',
       display: 'flex',
-      flexWrap: 'wrap',
       justifyContent: 'space-between',
       alignItems: 'center',
-      marginBottom: '24px',
-      gap: '16px',
+      flexWrap: 'wrap',
+      gap: '20px',
+    },
+    titleSection: {
+      flex: 1,
     },
     title: {
-      fontSize: '2rem',
-      fontWeight: '700',
-      color: '#1f2937',
+      fontSize: '2.5rem',
+      fontWeight: '800',
       marginBottom: '8px',
+      fontFamily: "'Poppins', sans-serif",
     },
     subtitle: {
-      color: '#6b7280',
-      fontSize: '1.125rem',
-      marginTop: '-8px',
+      fontSize: '1.1rem',
+      opacity: 0.9,
     },
-    exportButton: {
+    headerActions: {
+      display: 'flex',
+      gap: '10px',
+    },
+    mainContent: {
+      maxWidth: '1400px',
+      margin: '0 auto',
+      padding: '30px 20px',
+    },
+    tabs: {
+      display: 'flex',
+      backgroundColor: 'white',
+      borderRadius: '12px',
+      overflow: 'hidden',
+      marginBottom: '30px',
+      boxShadow: '0 4px 15px rgba(0, 0, 0, 0.08)',
+    },
+    tab: {
+      flex: 1,
+      padding: '18px 24px',
+      textAlign: 'center',
+      cursor: 'pointer',
       display: 'flex',
       alignItems: 'center',
-      gap: '8px',
-      backgroundColor: '#10b981',
-      color: 'white',
-      padding: '12px 24px',
-      border: 'none',
-      borderRadius: '8px',
-      cursor: 'pointer',
-      fontSize: '14px',
-      fontWeight: '500',
-      transition: 'background-color 0.3s ease',
-      flexShrink: 0,
+      justifyContent: 'center',
+      gap: '10px',
+      fontSize: '0.95rem',
+      fontWeight: '600',
+      transition: 'all 0.3s ease',
+      borderBottom: '3px solid transparent',
     },
-    stats: {
+    activeTab: {
+      backgroundColor: '#f0f9ff',
+      color: '#0a4a7a',
+      borderBottomColor: '#0a4a7a',
+    },
+    statsGrid: {
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-      gap: '16px',
-      marginBottom: '24px',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+      gap: '20px',
+      marginBottom: '30px',
     },
     statCard: {
-      padding: '16px',
-      borderRadius: '8px',
-      border: '1px solid',
-      textAlign: 'center',
+      backgroundColor: 'white',
+      padding: '24px',
+      borderRadius: '12px',
+      boxShadow: '0 4px 15px rgba(0, 0, 0, 0.08)',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '18px',
+      transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+    },
+    statIcon: {
+      width: '56px',
+      height: '56px',
+      borderRadius: '12px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+    },
+    statContent: {
+      flex: 1,
     },
     statNumber: {
-      fontSize: '1.5rem',
-      fontWeight: '700',
+      fontSize: '2rem',
+      fontWeight: '800',
       marginBottom: '4px',
     },
     statLabel: {
-      fontSize: '0.75rem',
+      fontSize: '0.85rem',
+      color: '#6b7280',
       fontWeight: '500',
-      textTransform: 'uppercase',
     },
-    filters: {
-      display: 'flex',
-      flexWrap: 'wrap',
-      gap: '16px',
-      alignItems: 'center',
+    filtersSection: {
+      backgroundColor: 'white',
+      padding: '28px',
+      borderRadius: '12px',
+      boxShadow: '0 4px 15px rgba(0, 0, 0, 0.08)',
+      marginBottom: '30px',
+    },
+    filterRow: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+      gap: '15px',
+      marginBottom: '20px',
     },
     searchBox: {
       position: 'relative',
-      flex: '1 1 300px', 
-      minWidth: '200px', // Adjusted for smaller screens
+      gridColumn: '1 / -1',
     },
     searchInput: {
       width: '100%',
-      padding: '12px 12px 12px 40px', // Added padding-left for icon
+      padding: '14px 20px 14px 48px',
       border: '2px solid #e5e7eb',
-      borderRadius: '8px',
-      fontSize: '14px',
-      outline: 'none',
-      transition: 'border-color 0.2s, box-shadow 0.2s',
+      borderRadius: '10px',
+      fontSize: '0.95rem',
+      transition: 'border-color 0.3s ease',
     },
     searchIcon: {
       position: 'absolute',
-      left: '12px',
+      left: '18px',
       top: '50%',
       transform: 'translateY(-50%)',
       color: '#9ca3af',
-      pointerEvents: 'none', // Prevent interference with input
-    },
-    clearSearchIcon: {
-      position: 'absolute',
-      right: '12px',
-      top: '50%',
-      transform: 'translateY(-50%)',
-      color: '#9ca3af',
-      cursor: 'pointer',
     },
     select: {
-      padding: '12px 16px',
+      width: '100%',
+      padding: '14px 16px',
       border: '2px solid #e5e7eb',
-      borderRadius: '8px',
-      fontSize: '14px',
-      outline: 'none',
+      borderRadius: '10px',
+      fontSize: '0.95rem',
       backgroundColor: 'white',
-      flex: '1 1 200px',
-      minWidth: '180px',
-    },
-    clearFiltersButton: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '6px',
-      padding: '12px 16px',
-      border: 'none',
-      borderRadius: '8px',
-      backgroundColor: '#f3f4f6',
-      color: '#4b5563',
       cursor: 'pointer',
-      fontSize: '14px',
-      fontWeight: '500',
-      transition: 'background-color 0.3s ease',
     },
-    alumniList: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '16px',
-    },
-    alumniCard: {
-      backgroundColor: 'white',
-      borderRadius: '12px',
-      padding: '24px',
-      boxShadow: '0 4px 10px rgba(0, 0, 0, 0.05)',
-      borderLeft: '4px solid',
-    },
-    cardContent: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '16px',
-    },
-    cardHeader: {
-      display: 'flex',
-      alignItems: 'center', 
-      gap: '16px',
-      marginBottom: '12px',
-    },
-    avatar: {
-      width: '48px',
-      height: '48px',
-      borderRadius: '50%',
-      objectFit: 'cover', 
-      backgroundColor: '#e0e7ff', 
-      flexShrink: 0,
-    },
-    alumniInfo: {
-      flex: '1',
-    },
-    alumniName: {
-      fontSize: '1.25rem',
-      fontWeight: '700',
-      color: '#1f2937',
-      marginBottom: '4px',
-    },
-    alumniJob: {
-      color: '#3b82f6',
-      fontWeight: '600',
-      marginBottom: '8px',
-    },
-    alumniDetails: {
-      display: 'flex',
-      flexWrap: 'wrap',
-      gap: '16px',
-      fontSize: '0.875rem',
-      color: '#6b7280',
-      marginBottom: '4px',
-    },
-    statusBadge: {
-      padding: '4px 12px',
-      borderRadius: '20px',
-      fontSize: '0.75rem',
-      fontWeight: '500',
-    },
-    registrationDate: {
-      fontSize: '0.75rem',
-      color: '#9ca3af',
-      marginTop: '4px',
-    },
-    bio: {
-      color: '#4b5563',
-      lineHeight: '1.5',
-      fontSize: '0.875rem',
-      marginBottom: '16px',
-    },
-    editInput: {
-      width: '100%',
-      padding: '8px 12px',
-      border: '1px solid #d1d5db',
-      borderRadius: '6px',
-      fontSize: '0.875rem',
-      marginBottom: '8px',
-    },
-    editTextarea: {
-      width: '100%',
-      padding: '8px 12px',
-      border: '1px solid #d1d5db',
-      borderRadius: '6px',
-      fontSize: '0.875rem',
-      minHeight: '80px',
-      resize: 'vertical',
-      marginBottom: '8px',
-    },
-    actions: {
-      display: 'flex',
-      flexWrap: 'wrap', 
-      gap: '8px',
-    },
-    button: {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center', 
-      gap: '6px',
-      padding: '8px 16px',
-      border: 'none',
-      borderRadius: '6px',
-      cursor: 'pointer',
-      fontSize: '12px',
-      fontWeight: '500',
-      transition: 'all 0.2s ease',
-      textDecoration: 'none',
-      flex: '1 1 auto', 
-      minWidth: '80px', 
-    },
-    modal: {
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 1000,
-      padding: '16px',
-    },
-    modalContent: {
-      backgroundColor: 'white',
-      borderRadius: '12px',
-      padding: '32px',
-      maxWidth: '600px',
-      width: '100%',
-      maxHeight: '90vh',
-      overflow: 'auto',
-      boxShadow: '0 25px 50px rgba(0, 0, 0, 0.3)',
-      textAlign: 'center', 
-    },
-    modalHeader: {
+    filterActions: {
       display: 'flex',
       justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      marginBottom: '24px',
-      textAlign: 'left', 
+      alignItems: 'center',
+      marginTop: '20px',
+      paddingTop: '20px',
+      borderTop: '1px solid #e5e7eb',
     },
-    modalTitle: {
-      fontSize: '1.5rem',
-      fontWeight: '700',
-      color: '#1f2937',
-    },
-    closeButton: {
-      color: '#9ca3af',
-      background: 'none',
-      border: 'none',
-      fontSize: '1.5rem',
-      cursor: 'pointer',
-    },
-    modalGrid: {
-      display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
-      gap: '24px',
-      marginBottom: '24px',
-      textAlign: 'left', 
-    },
-    modalSection: {
+    bulkActions: {
       display: 'flex',
-      flexDirection: 'column',
-      gap: '16px',
+      gap: '10px',
+      alignItems: 'center',
     },
-    modalLabel: {
-      display: 'block',
-      fontSize: '0.875rem',
-      fontWeight: '500',
-      color: '#374151',
-      marginBottom: '4px',
-    },
-    modalText: {
-      color: '#1f2937',
-    },
-    modalBio: {
-      marginBottom: '24px',
-      textAlign: 'left', 
-    },
-    modalActions: {
-      display: 'flex',
-      gap: '12px',
-    },
-    modalActionButton: {
-      flex: '1',
-      padding: '12px 16px',
+    button: {
+      padding: '11px 22px',
       border: 'none',
       borderRadius: '8px',
-      color: 'white',
-      textAlign: 'center',
-      textDecoration: 'none',
-      fontSize: '14px',
-      fontWeight: '500',
       cursor: 'pointer',
+      fontSize: '0.85rem',
+      fontWeight: '600',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      transition: 'all 0.3s ease',
+    },
+    tableContainer: {
+      backgroundColor: 'white',
+      borderRadius: '12px',
+      overflow: 'hidden',
+      boxShadow: '0 4px 15px rgba(0, 0, 0, 0.08)',
+    },
+    tableHeader: {
+      display: 'grid',
+      gridTemplateColumns: '50px 180px 220px 120px 100px 140px 100px 120px 140px',
+      backgroundColor: '#f8fafc',
+      padding: '18px',
+      borderBottom: '2px solid #e5e7eb',
+      fontWeight: '600',
+      color: '#4b5563',
+      fontSize: '0.85rem',
+    },
+    tableRow: {
+      display: 'grid',
+      gridTemplateColumns: '50px 180px 220px 120px 100px 140px 100px 120px 140px',
+      padding: '18px',
+      borderBottom: '1px solid #e5e7eb',
+      alignItems: 'center',
       transition: 'background-color 0.3s ease',
     },
-    deleteModal: {
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    checkbox: {
+      width: '18px',
+      height: '18px',
+      cursor: 'pointer',
+      accentColor: '#0a4a7a',
+    },
+    avatar: {
+      width: '36px',
+      height: '36px',
+      borderRadius: '50%',
+      objectFit: 'cover',
+      border: '2px solid #e5e7eb',
+    },
+    statusBadge: {
+      padding: '5px 10px',
+      borderRadius: '20px',
+      fontSize: '0.75rem',
+      fontWeight: '600',
+      display: 'inline-block',
+      textAlign: 'center',
+      minWidth: '70px',
+    },
+    actionCell: {
+      display: 'flex',
+      gap: '6px',
+    },
+    actionIcon: {
+      width: '30px',
+      height: '30px',
+      borderRadius: '6px',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      zIndex: 1000,
-      padding: '16px',
-    },
-    deleteModalContent: {
-      backgroundColor: 'white',
-      borderRadius: '12px',
-      padding: '32px',
-      maxWidth: '500px',
-      width: '100%',
-      textAlign: 'center',
-      boxShadow: '0 25px 50px rgba(0, 0, 0, 0.3)',
-    },
-    deleteIcon: {
-      fontSize: '4rem',
-      color: '#ef4444',
-      marginBottom: '16px',
-    },
-    deleteTitle: {
-      fontSize: '1.5rem',
-      fontWeight: '700',
-      color: '#1f2937',
-      marginBottom: '12px',
-    },
-    deleteText: {
-      color: '#6b7280',
-      lineHeight: '1.6',
-      marginBottom: '24px',
-    },
-    deleteActions: {
-      display: 'flex',
-      gap: '12px',
-      justifyContent: 'center',
-    },
-    deleteButton: {
-      padding: '12px 24px',
-      border: 'none',
-      borderRadius: '8px',
       cursor: 'pointer',
-      fontSize: '14px',
-      fontWeight: '500',
-      transition: 'background-color 0.3s ease',
+      transition: 'all 0.3s ease',
     },
-    emptyState: {
-      textAlign: 'center',
-      padding: '48px 20px',
-      backgroundColor: 'white',
-      borderRadius: '12px',
-      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-    },
-    emptyIcon: {
-      marginBottom: '16px',
-      color: '#d1d5db',
-    },
-    emptyTitle: {
-      fontSize: '1.25rem',
-      fontWeight: '600',
-      color: '#6b7280',
-      marginBottom: '8px',
-    },
-    emptyText: {
-      color: '#9ca3af',
+    sortableHeader: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px',
+      cursor: 'pointer',
     },
     notification: {
       position: 'fixed',
       top: '20px',
       right: '20px',
       padding: '16px 24px',
-      borderRadius: '8px',
-      boxShadow: '0 4px 10px rgba(0, 0, 0, 0.1)',
+      borderRadius: '10px',
+      boxShadow: '0 10px 25px rgba(0, 0, 0, 0.15)',
       display: 'flex',
       alignItems: 'center',
       gap: '12px',
       zIndex: 2000,
       backgroundColor: 'white',
+      borderLeft: '5px solid',
+      animation: 'slideIn 0.3s ease',
     },
-    notificationSuccess: {
-      borderLeft: '4px solid #10b981',
+    '@keyframes slideIn': {
+      from: { transform: 'translateX(100%)', opacity: 0 },
+      to: { transform: 'translateX(0)', opacity: 1 },
     },
-    notificationError: {
-      borderLeft: '4px solid #ef4444',
-    },
-    notificationText: {
-      color: '#1f2937',
-      fontWeight: '500',
-    },
-    lightbox: {
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.8)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 2000,
-      padding: '16px',
-    },
-    lightboxImage: {
-      maxWidth: '90vw',
-      maxHeight: '90vh',
-      objectFit: 'contain',
-      borderRadius: '8px',
-    },
-    lightboxClose: {
-      position: 'absolute',
-      top: '20px',
-      right: '20px',
-      color: 'white',
-      background: 'none',
-      border: 'none',
-      fontSize: '2rem',
-      cursor: 'pointer',
-    },
-    loadingOverlay: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(255, 255, 255, 0.8)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderRadius: '12px',
-    }
   };
 
+  // Analytics Styles
+  const analyticsStyles = {
+    container: {
+      padding: '20px 0',
+    },
+    metricsGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+      gap: '20px',
+      marginBottom: '30px',
+    },
+    metricCard: {
+      backgroundColor: 'white',
+      padding: '25px',
+      borderRadius: '12px',
+      boxShadow: '0 4px 15px rgba(0, 0, 0, 0.08)',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '20px',
+      transition: 'transform 0.3s ease',
+    },
+    metricIcon: {
+      width: '60px',
+      height: '60px',
+      borderRadius: '12px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+    },
+    metricContent: {
+      flex: 1,
+    },
+    metricValue: {
+      fontSize: '2.2rem',
+      fontWeight: '800',
+      marginBottom: '5px',
+    },
+    metricLabel: {
+      fontSize: '0.9rem',
+      color: '#6b7280',
+      fontWeight: '500',
+    },
+    chartsGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
+      gap: '20px',
+      marginBottom: '30px',
+    },
+    chartCard: {
+      backgroundColor: 'white',
+      padding: '25px',
+      borderRadius: '12px',
+      boxShadow: '0 4px 15px rgba(0, 0, 0, 0.08)',
+    },
+    chartHeader: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: '25px',
+    },
+    chartTitle: {
+      fontSize: '1.2rem',
+      fontWeight: '700',
+      color: '#1f2937',
+      margin: 0,
+    },
+    chartContent: {
+      minHeight: '250px',
+    },
+    distributionItem: {
+      marginBottom: '20px',
+    },
+    distributionHeader: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '10px',
+      marginBottom: '8px',
+    },
+    distributionColor: {
+      width: '12px',
+      height: '12px',
+      borderRadius: '50%',
+    },
+    distributionLabel: {
+      flex: 1,
+      fontSize: '0.9rem',
+      fontWeight: '500',
+      color: '#4b5563',
+    },
+    distributionValue: {
+      fontSize: '0.9rem',
+      fontWeight: '600',
+      color: '#1f2937',
+    },
+    progressBar: {
+      height: '6px',
+      backgroundColor: '#e5e7eb',
+      borderRadius: '3px',
+      marginBottom: '6px',
+      overflow: 'hidden',
+    },
+    percentage: {
+      fontSize: '0.8rem',
+      color: '#6b7280',
+      textAlign: 'right',
+    },
+    barItem: {
+      marginBottom: '20px',
+    },
+    barInfo: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: '8px',
+    },
+    barLabel: {
+      fontSize: '0.9rem',
+      color: '#4b5563',
+      fontWeight: '500',
+      maxWidth: '70%',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+    },
+    barValue: {
+      fontSize: '0.9rem',
+      fontWeight: '600',
+      color: '#1f2937',
+    },
+    barContainer: {
+      height: '24px',
+      backgroundColor: '#e5e7eb',
+      borderRadius: '4px',
+      overflow: 'hidden',
+    },
+    yearChart: {
+      display: 'flex',
+      alignItems: 'flex-end',
+      justifyContent: 'center',
+      gap: '20px',
+      height: '200px',
+      paddingTop: '20px',
+    },
+    yearBar: {
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: '8px',
+    },
+    yearCount: {
+      fontSize: '0.9rem',
+      fontWeight: '600',
+      color: '#1f2937',
+    },
+    yearLabel: {
+      fontSize: '0.8rem',
+      color: '#6b7280',
+    },
+    companyList: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '15px',
+    },
+    companyItem: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '15px',
+      padding: '15px',
+      backgroundColor: '#f8fafc',
+      borderRadius: '8px',
+      border: '1px solid #e5e7eb',
+    },
+    companyRank: {
+      width: '32px',
+      height: '32px',
+      backgroundColor: '#0a4a7a',
+      color: 'white',
+      borderRadius: '50%',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontWeight: '700',
+      fontSize: '0.9rem',
+    },
+    companyInfo: {
+      flex: 1,
+    },
+    companyName: {
+      fontSize: '0.95rem',
+      fontWeight: '600',
+      color: '#1f2937',
+      marginBottom: '2px',
+    },
+    companyCount: {
+      fontSize: '0.8rem',
+      color: '#6b7280',
+    },
+    companyBadge: {
+      backgroundColor: '#dcfce7',
+      color: '#166534',
+      padding: '6px 12px',
+      borderRadius: '20px',
+      fontSize: '0.8rem',
+      fontWeight: '600',
+    },
+    locationGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+      gap: '15px',
+    },
+    locationItem: {
+      backgroundColor: '#f8fafc',
+      padding: '20px',
+      borderRadius: '8px',
+      border: '1px solid #e5e7eb',
+    },
+    locationHeader: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      marginBottom: '15px',
+    },
+    locationName: {
+      fontSize: '0.95rem',
+      fontWeight: '600',
+      color: '#1f2937',
+    },
+    locationStats: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    locationCount: {
+      fontSize: '1.5rem',
+      fontWeight: '700',
+      color: '#0a4a7a',
+    },
+    locationPercentage: {
+      fontSize: '0.9rem',
+      color: '#6b7280',
+      fontWeight: '500',
+    },
+    verificationCard: {
+      backgroundColor: 'white',
+      padding: '25px',
+      borderRadius: '12px',
+      boxShadow: '0 4px 15px rgba(0, 0, 0, 0.08)',
+    },
+    verificationContent: {
+      display: 'flex',
+      justifyContent: 'center',
+    },
+    verificationStats: {
+      display: 'flex',
+      gap: '40px',
+      textAlign: 'center',
+    },
+    verificationStat: {
+      padding: '20px',
+      minWidth: '150px',
+    },
+    verificationValue: {
+      fontSize: '2.5rem',
+      fontWeight: '800',
+      marginBottom: '5px',
+    },
+    verificationLabel: {
+      fontSize: '0.9rem',
+      color: '#6b7280',
+      fontWeight: '500',
+      marginBottom: '5px',
+    },
+    verificationPercentage: {
+      fontSize: '1rem',
+      fontWeight: '600',
+      color: '#0a4a7a',
+    },
+  };
+
+  // Loading state
   if (isLoading) {
     return (
-      <div style={{...styles.container, display: 'flex', justifyContent: 'center', alignItems: 'center'}}>
-        <Loader size={40} color="#3b82f6" className="animate-spin" /> 
-        <p style={{marginLeft: '10px', fontSize: '1.2rem', color: '#3b82f6'}}>Loading Alumni Data...</p>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        backgroundColor: '#f8fafc',
+      }}>
+        <Loader size={40} color="#0a4a7a" className="animate-spin" />
+        <span style={{ marginLeft: '15px', fontSize: '1.2rem', color: '#0a4a7a' }}>
+          Loading Admin Panel...
+        </span>
       </div>
     );
   }
 
   return (
     <div style={styles.container}>
-      <div style={styles.wrapper}>
-        
-        {/* --- Notification Bar --- */}
-        {notification && (
-          <div style={{
-            ...styles.notification,
-            ...(notification.type === 'success' ? styles.notificationSuccess : styles.notificationError)
-          }}>
-            {notification.type === 'success' ? 
-              <CheckCircle size={20} color="#10b981" /> : 
-              <AlertCircle size={20} color="#ef4444" />}
-            <span style={styles.notificationText}>{notification.message}</span>
-            <button 
-              onClick={() => setNotification(null)}
-              style={{ ...styles.closeButton, color: '#9ca3af', fontSize: '1.2rem', position: 'relative', top: '-2px', right: '-2px' }}
-            >
-              ×
-            </button>
+      {/* Header */}
+      <div style={styles.header}>
+        <div style={styles.headerContent}>
+          <div style={styles.titleSection}>
+            <h1 style={styles.title}>Alumni Management Admin</h1>
+            <p style={styles.subtitle}>Manage alumni registrations and profiles</p>
           </div>
-        )}
-
-        {/* Header */}
-        <div style={styles.header}>
-          <div style={styles.headerTop}>
-            <div>
-              <h1 style={styles.title}>Alumni Management Admin</h1>
-              <p style={styles.subtitle}>Manage alumni registrations and approvals</p>
-            </div>
+          <div style={styles.headerActions}>
             <button
-              onClick={exportToCSV}
-              style={styles.exportButton}
-              onMouseEnter={(e) => e.target.style.backgroundColor = '#059669'}
-              onMouseLeave={(e) => e.target.style.backgroundColor = '#10b981'}
+              style={{ ...styles.button, backgroundColor: '#3b82f6', color: 'white' }}
+              onClick={loadAlumniData}
+              onMouseEnter={e => e.currentTarget.style.backgroundColor = '#2563eb'}
+              onMouseLeave={e => e.currentTarget.style.backgroundColor = '#3b82f6'}
             >
-              <Download size={20} />
-              Export Approved Alumni
+              <RefreshCw size={18} />
+              Refresh
             </button>
-          </div>
-
-          {/* Stats */}
-          <div style={styles.stats}>
-            <div style={{...styles.statCard, backgroundColor: '#dbeafe', borderColor: '#93c5fd'}}>
-              <div style={{...styles.statNumber, color: '#1d4ed8'}}>{alumniData.length}</div>
-              <div style={{...styles.statLabel, color: '#1e40af'}}>Total Registrations</div>
-            </div>
-            <div style={{...styles.statCard, backgroundColor: '#fef3c7', borderColor: '#fcd34d'}}>
-              <div style={{...styles.statNumber, color: '#d97706'}}>{pendingCount}</div>
-              <div style={{...styles.statLabel, color: '#b45309'}}>Pending Approval</div>
-            </div>
-            <div style={{...styles.statCard, backgroundColor: '#dcfce7', borderColor: '#86efac'}}>
-              <div style={{...styles.statNumber, color: '#15803d'}}>{approvedCount}</div>
-              <div style={{...styles.statLabel, color: '#166534'}}>Approved Alumni</div>
-            </div>
-            <div style={{...styles.statCard, backgroundColor: '#fee2e2', borderColor: '#fca5a5'}}>
-              <div style={{...styles.statNumber, color: '#dc2626'}}>{rejectedCount}</div>
-              <div style={{...styles.statLabel, color: '#b91c1c'}}>Rejected</div>
-            </div>
-          </div>
-
-          {/* Filters */}
-          <div style={styles.filters}>
-            <div style={styles.searchBox}>
-              <Search size={20} style={styles.searchIcon} />
-              <input
-                type="text"
-                placeholder="Search alumni by name, company, or email..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                style={styles.searchInput}
-                onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
-                onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
-              />
-              {/* --- Clear search button --- */}
-              {searchTerm && (
-                <X 
-                  size={20} 
-                  style={styles.clearSearchIcon} 
-                  onClick={() => setSearchTerm('')} 
-                />
-              )}
-            </div>
-            
-            <select
-              value={filterDepartment}
-              onChange={(e) => setFilterDepartment(e.target.value)}
-              style={styles.select}
-            >
-              <option value="">All Departments</option>
-              {departments.map(dept => (
-                <option key={dept} value={dept}>{dept}</option>
-              ))}
-            </select>
-
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              style={styles.select}
-            >
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
-              <option value="">All Status</option>
-            </select>
-
-            {/* --- Clear all filters button --- */}
             <button
-              onClick={handleClearFilters}
-              style={styles.clearFiltersButton}
-              onMouseEnter={(e) => e.target.style.backgroundColor = '#e5e7eb'}
-              onMouseLeave={(e) => e.target.style.backgroundColor = '#f3f4f6'}
+              style={{ ...styles.button, backgroundColor: '#10b981', color: 'white' }}
+              onClick={() => setShowExportOptions(true)}
+              onMouseEnter={e => e.currentTarget.style.backgroundColor = '#059669'}
+              onMouseLeave={e => e.currentTarget.style.backgroundColor = '#10b981'}
             >
-              <XCircle size={16} />
-              Clear All Filters
+              <Download size={18} />
+              Export
             </button>
           </div>
         </div>
+      </div>
 
-        {/* Alumni List */}
-        <div style={styles.alumniList}>
-          {filteredAlumni.map(alumni => (
-            <div 
-              key={alumni.id} 
-              style={{
-                ...styles.alumniCard,
-                borderLeftColor: 
-                  alumni.status === 'pending' ? '#f59e0b' : 
-                  alumni.status === 'approved' ? '#10b981' : '#ef4444'
-              }}
-            >
-              <div style={styles.cardContent}>
-                <div style={styles.cardHeader}>
-                  <img
-                    src={alumni.profileImage || generateAvatarUrl(alumni.name)} // Use fallback if image is null
-                    alt={`${alumni.name}'s profile`}
-                    style={styles.avatar}
+      {/* Main Content */}
+      <div style={styles.mainContent}>
+        {/* Tabs */}
+        <div style={styles.tabs}>
+          <div
+            style={{ ...styles.tab, ...(activeTab === 'registrations' && styles.activeTab) }}
+            onClick={() => setActiveTab('registrations')}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f8fafc'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = activeTab === 'registrations' ? '#f0f9ff' : 'white'}
+          >
+            <Users size={20} />
+            Registrations ({filteredData.length})
+          </div>
+          <div
+            style={{ ...styles.tab, ...(activeTab === 'analytics' && styles.activeTab) }}
+            onClick={() => setActiveTab('analytics')}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f8fafc'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = activeTab === 'analytics' ? '#f0f9ff' : 'white'}
+          >
+            <BarChart3 size={20} />
+            Analytics
+          </div>
+        </div>
+
+        {/* Tab Content */}
+        {activeTab === 'registrations' ? (
+          <>
+            {/* Statistics */}
+            <div style={styles.statsGrid}>
+              <div 
+                style={styles.statCard}
+                onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-5px)'}
+                onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+              >
+                <div style={{ ...styles.statIcon, backgroundColor: '#dbeafe' }}>
+                  <Users size={28} color="#1d4ed8" />
+                </div>
+                <div style={styles.statContent}>
+                  <div style={{ ...styles.statNumber, color: '#1d4ed8' }}>{stats.total}</div>
+                  <div style={styles.statLabel}>Total Alumni</div>
+                </div>
+              </div>
+              <div 
+                style={styles.statCard}
+                onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-5px)'}
+                onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+              >
+                <div style={{ ...styles.statIcon, backgroundColor: '#dcfce7' }}>
+                  <CheckCircle size={28} color="#166534" />
+                </div>
+                <div style={styles.statContent}>
+                  <div style={{ ...styles.statNumber, color: '#166534' }}>{stats.approved}</div>
+                  <div style={styles.statLabel}>Approved</div>
+                </div>
+              </div>
+              <div 
+                style={styles.statCard}
+                onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-5px)'}
+                onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+              >
+                <div style={{ ...styles.statIcon, backgroundColor: '#fef3c7' }}>
+                  <Clock size={28} color="#d97706" />
+                </div>
+                <div style={styles.statContent}>
+                  <div style={{ ...styles.statNumber, color: '#d97706' }}>{stats.pending}</div>
+                  <div style={styles.statLabel}>Pending</div>
+                </div>
+              </div>
+              <div 
+                style={styles.statCard}
+                onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-5px)'}
+                onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+              >
+                <div style={{ ...styles.statIcon, backgroundColor: '#fef3c7' }}>
+                  <Award size={28} color="#d97706" />
+                </div>
+                <div style={styles.statContent}>
+                  <div style={{ ...styles.statNumber, color: '#d97706' }}>{stats.verified}</div>
+                  <div style={styles.statLabel}>Verified</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Filters */}
+            <div style={styles.filtersSection}>
+              <div style={styles.filterRow}>
+                <div style={styles.searchBox}>
+                  <Search size={20} style={styles.searchIcon} />
+                  <input
+                    type="text"
+                    placeholder="Search alumni by name, email, company..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    style={styles.searchInput}
+                    onFocus={e => e.target.style.borderColor = '#3b82f6'}
+                    onBlur={e => e.target.style.borderColor = '#e5e7eb'}
                   />
-                  <div style={styles.alumniInfo}>
-                    {editingAlumni === alumni.id ? (
-                      <>
-                        <input type="text" value={editFormData.name || ''} onChange={(e) => handleEditChange('name', e.target.value)} style={styles.editInput} placeholder="Full Name" />
-                        <input type="email" value={editFormData.email || ''} onChange={(e) => handleEditChange('email', e.target.value)} style={styles.editInput} placeholder="Email" />
-                        <input type="text" value={editFormData.jobTitle || ''} onChange={(e) => handleEditChange('jobTitle', e.target.value)} style={styles.editInput} placeholder="Job Title" />
-                        <input type="text" value={editFormData.company || ''} onChange={(e) => handleEditChange('company', e.target.value)} style={styles.editInput} placeholder="Company" />
-                      </>
-                    ) : (
-                      <>
-                        <h3 style={styles.alumniName}>{alumni.name}</h3>
-                        <p style={styles.alumniJob}>{alumni.jobTitle} at {alumni.company}</p>
-                      </>
-                    )}
-                    
-                    <div style={styles.alumniDetails}>
-                      {editingAlumni === alumni.id ? (
-                        <>
-                          <select value={editFormData.department || ''} onChange={(e) => handleEditChange('department', e.target.value)} style={styles.editInput} >
-                            <option value="">Select Department</option>
-                            {departments.map(dept => (
-                              <option key={dept} value={dept}>{dept}</option>
-                            ))}
-                          </select>
-                          <input type="number" value={editFormData.graduationYear || ''} onChange={(e) => handleEditChange('graduationYear', e.target.value)} style={styles.editInput} placeholder="Graduation Year" />
-                          <input type="text" value={editFormData.location || ''} onChange={(e) => handleEditChange('location', e.target.value)} style={styles.editInput} placeholder="Location" />
-                        </>
-                      ) : (
-                        <>
-                          <span><strong>Department:</strong> {alumni.department}</span>
-                          <span><strong>Graduation:</strong> {alumni.graduationYear}</span>
-                          <span><strong>Location:</strong> {alumni.location}</span>
-                        </>
-                      )}
-                      <span style={{
-                        ...styles.statusBadge,
-                        backgroundColor: 
-                          alumni.status === 'pending' ? '#fef3c7' :
-                          alumni.status === 'approved' ? '#dcfce7' : '#fee2e2',
-                        color: 
-                          alumni.status === 'pending' ? '#d97706' :
-                          alumni.status === 'approved' ? '#166534' : '#dc2626'
-                      }}>
-                        {alumni.status.toUpperCase()}
-                      </span>
-                    </div>
-                    <div style={styles.registrationDate}>
-                      Registered: {alumni.registrationDate}
-                      {alumni.approvedDate && ` • Approved: ${alumni.approvedDate}`}
-                    </div>
-                  </div>
                 </div>
                 
-                {editingAlumni === alumni.id ? (
-                  <textarea value={editFormData.bio || ''} onChange={(e) => handleEditChange('bio', e.target.value)} style={styles.editTextarea} placeholder="Professional Bio" />
-                ) : (
-                  <p style={styles.bio}>{alumni.bio}</p>
-                )}
+                <select
+                  value={filters.department}
+                  onChange={(e) => setFilters({ ...filters, department: e.target.value })}
+                  style={styles.select}
+                >
+                  <option value="">All Departments</option>
+                  {departmentOptions.map(dept => (
+                    <option key={dept} value={dept}>{dept}</option>
+                  ))}
+                </select>
                 
-                <div style={styles.actions}>
-                  {editingAlumni === alumni.id ? (
+                <select
+                  value={filters.status}
+                  onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                  style={styles.select}
+                >
+                  <option value="">All Status</option>
+                  <option value="approved">Approved</option>
+                  <option value="pending">Pending</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+                
+                <select
+                  value={filters.graduationYear}
+                  onChange={(e) => setFilters({ ...filters, graduationYear: e.target.value })}
+                  style={styles.select}
+                >
+                  <option value="">All Years</option>
+                  {yearOptions.map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div style={styles.filterActions}>
+                <div style={styles.bulkActions}>
+                  <input
+                    type="checkbox"
+                    checked={bulkSelection.length === filteredData.length && filteredData.length > 0}
+                    onChange={toggleBulkSelection}
+                    style={styles.checkbox}
+                  />
+                  <span style={{ fontSize: '0.9rem', color: '#6b7280', marginRight: '15px' }}>
+                    Select All ({bulkSelection.length} selected)
+                  </span>
+                  
+                  {bulkSelection.length > 0 && (
                     <>
-                      <button onClick={handleSaveEdit} style={{ ...styles.button, backgroundColor: '#10b981', color: 'white' }} onMouseEnter={(e) => e.target.style.backgroundColor = '#059669'} onMouseLeave={(e) => e.target.style.backgroundColor = '#10b981'} >
-                        <Save size={16} /> Save
+                      <button
+                        style={{ ...styles.button, backgroundColor: '#10b981', color: 'white' }}
+                        onClick={handleBulkApprove}
+                        onMouseEnter={e => e.currentTarget.style.backgroundColor = '#059669'}
+                        onMouseLeave={e => e.currentTarget.style.backgroundColor = '#10b981'}
+                      >
+                        <CheckCircle size={16} />
+                        Approve ({bulkSelection.length})
                       </button>
-                      <button onClick={handleCancelEdit} style={{ ...styles.button, backgroundColor: '#6b7280', color: 'white' }} onMouseEnter={(e) => e.target.style.backgroundColor = '#4b5563'} onMouseLeave={(e) => e.target.style.backgroundColor = '#6b7280'} >
-                        <X size={16} /> Cancel
+                      <button
+                        style={{ ...styles.button, backgroundColor: '#ef4444', color: 'white' }}
+                        onClick={handleBulkReject}
+                        onMouseEnter={e => e.currentTarget.style.backgroundColor = '#dc2626'}
+                        onMouseLeave={e => e.currentTarget.style.backgroundColor = '#ef4444'}
+                      >
+                        <XCircle size={16} />
+                        Reject ({bulkSelection.length})
                       </button>
-                    </>
-                  ) : (
-                    <>
-                      <button onClick={() => setSelectedAlumni(alumni)} style={{ ...styles.button, backgroundColor: '#3b82f6', color: 'white' }} onMouseEnter={(e) => e.target.style.backgroundColor = '#2563eb'} onMouseLeave={(e) => e.target.style.backgroundColor = '#3b82f6'} >
-                        <Eye size={16} /> View
-                      </button>
-                      
-                      {alumni.status === 'approved' && (
-                        <button onClick={() => handleEdit(alumni)} style={{ ...styles.button, backgroundColor: '#f59e0b', color: 'white' }} onMouseEnter={(e) => e.target.style.backgroundColor = '#d97706'} onMouseLeave={(e) => e.target.style.backgroundColor = '#f59e0b'} >
-                          <Edit size={16} /> Edit
-                        </button>
-                      )}
-                      
-                      {alumni.status === 'pending' && (
-                        <>
-                          <button onClick={() => handleApprove(alumni.id)} style={{ ...styles.button, backgroundColor: '#10b981', color: 'white' }} onMouseEnter={(e) => e.target.style.backgroundColor = '#059669'} onMouseLeave={(e) => e.target.style.backgroundColor = '#10b981'} >
-                            <CheckCircle size={16} /> Approve
-                          </button>
-                          <button onClick={() => handleReject(alumni.id)} style={{ ...styles.button, backgroundColor: '#ef4444', color: 'white' }} onMouseEnter={(e) => e.target.style.backgroundColor = '#dc2626'} onMouseLeave={(e) => e.target.style.backgroundColor = '#ef4444'} >
-                            <XCircle size={16} /> Reject
-                          </button>
-                        </>
-                      )}
-                      
-                      {(alumni.status === 'approved' || alumni.status === 'rejected') && (
-                        <a href={`mailto:${alumni.email}`} style={{ ...styles.button, backgroundColor: '#8b5cf6', color: 'white' }} onMouseEnter={(e) => e.target.style.backgroundColor = '#7c3aed'} onMouseLeave={(e) => e.target.style.backgroundColor = '#8b5cf6'} >
-                          <Mail size={16} /> Email
-                        </a>
-                      )}
-
-                      <button onClick={() => setDeleteConfirm(alumni)} style={{ ...styles.button, backgroundColor: '#ef4444', color: 'white' }} onMouseEnter={(e) => e.target.style.backgroundColor = '#dc2626'} onMouseLeave={(e) => e.target.style.backgroundColor = '#ef4444'} >
-                        <Trash2 size={16} /> Delete
+                      <button
+                        style={{ ...styles.button, backgroundColor: '#6b7280', color: 'white' }}
+                        onClick={handleBulkDelete}
+                        onMouseEnter={e => e.currentTarget.style.backgroundColor = '#4b5563'}
+                        onMouseLeave={e => e.currentTarget.style.backgroundColor = '#6b7280'}
+                      >
+                        <Trash2 size={16} />
+                        Delete ({bulkSelection.length})
                       </button>
                     </>
                   )}
                 </div>
+                
+                <div>
+                  <button
+                    style={{ ...styles.button, backgroundColor: '#f3f4f6', color: '#4b5563' }}
+                    onClick={resetFilters}
+                    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#e5e7eb'}
+                    onMouseLeave={e => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+                  >
+                    <Filter size={16} />
+                    Reset Filters
+                  </button>
+                </div>
               </div>
             </div>
-          ))}
 
-          {filteredAlumni.length === 0 && (
-            <div style={styles.emptyState}>
-              <Users size={64} style={styles.emptyIcon} />
-              <h3 style={styles.emptyTitle}>No alumni found</h3>
-              <p style={styles.emptyText}>Try adjusting your search or filters</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Alumni Detail Modal */}
-      {selectedAlumni && (
-        <div style={styles.modal} onClick={() => setSelectedAlumni(null)}>
-          <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
-            <img
-              onClick={() => selectedAlumni.profileImage && setLightboxImage(selectedAlumni.profileImage)}
-              src={selectedAlumni.profileImage || generateAvatarUrl(selectedAlumni.name)}
-              alt={`${selectedAlumni.name}'s profile`}
-              style={{
-                width: '100px',
-                height: '100px',
-                borderRadius: '50%',
-                objectFit: 'cover',
-                margin: '-80px auto 20px',
-                border: '4px solid white',
-                boxShadow: '0 4px 10px rgba(0, 0, 0, 0.1)',
-                cursor: selectedAlumni.profileImage ? 'pointer' : 'default', // Only clickable if image exists
-              }}
-            />
-            <div style={styles.modalHeader}>
-              <h2 style={styles.modalTitle}>{selectedAlumni.name}</h2>
-              <button onClick={() => setSelectedAlumni(null)} style={styles.closeButton} >
-                ×
-              </button>
-            </div>
-
-            <div style={styles.modalGrid}>
-              <div style={styles.modalSection}>
-                <div><label style={styles.modalLabel}>Email</label><p style={styles.modalText}>{selectedAlumni.email}</p></div>
-                <div><label style={styles.modalLabel}>Mobile</label><p style={styles.modalText}>{selectedAlumni.mobile}</p></div>
-                <div><label style={styles.modalLabel}>Department</label><p style={styles.modalText}>{selectedAlumni.department}</p></div>
-                <div><label style={styles.modalLabel}>Graduation Year</label><p style={styles.modalText}>{selectedAlumni.graduationYear}</p></div>
+            {/* Data Table */}
+            <div style={styles.tableContainer}>
+              <div style={styles.tableHeader}>
+                <div></div>
+                <div style={styles.sortableHeader} onClick={() => handleSort('name')}>
+                  Name {sortConfig.key === 'name' && (sortConfig.direction === 'asc' ? <ChevronUp size={16} /> : <ChevronDown size={16} />)}
+                </div>
+                <div>Contact</div>
+                <div>Department</div>
+                <div style={styles.sortableHeader} onClick={() => handleSort('graduationYear')}>
+                  Batch {sortConfig.key === 'graduationYear' && (sortConfig.direction === 'asc' ? <ChevronUp size={16} /> : <ChevronDown size={16} />)}
+                </div>
+                <div>Company</div>
+                <div style={styles.sortableHeader} onClick={() => handleSort('status')}>
+                  Status {sortConfig.key === 'status' && (sortConfig.direction === 'asc' ? <ChevronUp size={16} /> : <ChevronDown size={16} />)}
+                </div>
+                <div>Verified</div>
+                <div>Actions</div>
               </div>
-              <div style={styles.modalSection}>
-                <div><label style={styles.modalLabel}>Job Title</label><p style={styles.modalText}>{selectedAlumni.jobTitle}</p></div>
-                <div><label style={styles.modalLabel}>Company</label><p style={styles.modalText}>{selectedAlumni.company}</p></div>
-                <div><label style={styles.modalLabel}>Location</label><p style={styles.modalText}>{selectedAlumni.location}</p></div>
-                {selectedAlumni.linkedinUrl && (
+              
+              {filteredData.map(alumni => (
+                <div 
+                  key={alumni.id} 
+                  style={styles.tableRow}
+                  onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f9fafb'}
+                  onMouseLeave={e => e.currentTarget.style.backgroundColor = 'white'}
+                >
                   <div>
-                    <label style={styles.modalLabel}>LinkedIn</label>
-                    <a href={selectedAlumni.linkedinUrl} target="_blank" rel="noopener noreferrer" style={{...styles.modalText, color: '#3b82f6', textDecoration: 'none', wordBreak: 'break-all'}}>
-                      View Profile
-                    </a>
+                    <input
+                      type="checkbox"
+                      checked={bulkSelection.includes(alumni.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setBulkSelection([...bulkSelection, alumni.id]);
+                        } else {
+                          setBulkSelection(bulkSelection.filter(id => id !== alumni.id));
+                        }
+                      }}
+                      style={styles.checkbox}
+                    />
                   </div>
-                )}
-              </div>
-            </div>
-
-            <div style={styles.modalBio}>
-              <label style={styles.modalLabel}>Professional Bio</label>
-              <p style={{...styles.modalText, lineHeight: '1.6'}}>{selectedAlumni.bio}</p>
-            </div>
-
-            <div style={styles.modalActions}>
-              <a href={`mailto:${selectedAlumni.email}`} style={{...styles.modalActionButton, backgroundColor: '#3b82f6'}} onMouseEnter={(e) => e.target.style.backgroundColor = '#2563eb'} onMouseLeave={(e) => e.target.style.backgroundColor = '#3b82f6'}>
-                Contact via Email
-              </a>
-              {selectedAlumni.linkedinUrl && (
-                <a href={selectedAlumni.linkedinUrl} target="_blank" rel="noopener noreferrer" style={{...styles.modalActionButton, backgroundColor: '#1e40af'}} onMouseEnter={(e) => e.target.style.backgroundColor = '#1e3a8a'} onMouseLeave={(e) => e.target.style.backgroundColor = '#1e40af'}>
-                  View LinkedIn
-                </a>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <img
+                      src={alumni.profileImage || `https://ui-avatars.com/api/?name=${alumni.name}&background=0a4a7a&color=fff`}
+                      alt={alumni.name}
+                      style={styles.avatar}
+                    />
+                    <div>
+                      <div style={{ fontWeight: '600', marginBottom: '4px' }}>{alumni.name}</div>
+                      <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>{alumni.jobTitle}</div>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <div style={{ fontWeight: '500', marginBottom: '4px' }}>{alumni.email}</div>
+                    <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>{alumni.mobile}</div>
+                  </div>
+                  
+                  <div>
+                    <div style={{ fontWeight: '500' }}>{getDeptAbbreviation(alumni.department)}</div>
+                    <div style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '2px' }}>
+                      {alumni.department.length > 20 ? alumni.department.substring(0, 20) + '...' : alumni.department}
+                    </div>
+                  </div>
+                  
+                  <div style={{ fontWeight: '600', color: '#0a4a7a' }}>{alumni.graduationYear}</div>
+                  
+                  <div>
+                    <div style={{ fontWeight: '500' }}>{alumni.company}</div>
+                    <div style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '2px' }}>{alumni.location}</div>
+                  </div>
+                  
+                  <div>
+                    <span style={{
+                      ...styles.statusBadge,
+                      backgroundColor: getStatusColor(alumni.status).bg,
+                      color: getStatusColor(alumni.status).text,
+                      border: `1px solid ${getStatusColor(alumni.status).border}`,
+                    }}>
+                      {alumni.status.toUpperCase()}
+                    </span>
+                  </div>
+                  
+                  <div>
+                    <button
+                      onClick={() => handleVerify(alumni.id)}
+                      style={{
+                        ...styles.statusBadge,
+                        backgroundColor: alumni.verified ? '#dcfce7' : '#f3f4f6',
+                        color: alumni.verified ? '#166534' : '#6b7280',
+                        cursor: 'pointer',
+                        border: `1px solid ${alumni.verified ? '#86efac' : '#d1d5db'}`,
+                        minWidth: '90px',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.opacity = '0.8'}
+                      onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                    >
+                      {alumni.verified ? 'VERIFIED' : 'NOT VERIFIED'}
+                    </button>
+                  </div>
+                  
+                  <div style={styles.actionCell}>
+                    <div
+                      style={{ ...styles.actionIcon, backgroundColor: '#3b82f6', color: 'white' }}
+                      onClick={() => setSelectedAlumni(alumni)}
+                      onMouseEnter={e => e.currentTarget.style.backgroundColor = '#2563eb'}
+                      onMouseLeave={e => e.currentTarget.style.backgroundColor = '#3b82f6'}
+                      title="View Details"
+                    >
+                      <Eye size={16} />
+                    </div>
+                    <div
+                      style={{ ...styles.actionIcon, backgroundColor: '#f59e0b', color: 'white' }}
+                      onClick={() => handleEdit(alumni)}
+                      onMouseEnter={e => e.currentTarget.style.backgroundColor = '#d97706'}
+                      onMouseLeave={e => e.currentTarget.style.backgroundColor = '#f59e0b'}
+                      title="Edit"
+                    >
+                      <Edit size={16} />
+                    </div>
+                    <div
+                      style={{ ...styles.actionIcon, backgroundColor: '#ef4444', color: 'white' }}
+                      onClick={() => setDeleteConfirm(alumni)}
+                      onMouseEnter={e => e.currentTarget.style.backgroundColor = '#dc2626'}
+                      onMouseLeave={e => e.currentTarget.style.backgroundColor = '#ef4444'}
+                      title="Delete"
+                    >
+                      <Trash2 size={16} />
+                    </div>
+                    {alumni.status === 'pending' && (
+                      <div
+                        style={{ ...styles.actionIcon, backgroundColor: '#10b981', color: 'white' }}
+                        onClick={() => handleApprove(alumni.id)}
+                        onMouseEnter={e => e.currentTarget.style.backgroundColor = '#059669'}
+                        onMouseLeave={e => e.currentTarget.style.backgroundColor = '#10b981'}
+                        title="Approve"
+                      >
+                        <CheckCircle size={16} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+              
+              {filteredData.length === 0 && (
+                <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
+                  <Users size={48} style={{ marginBottom: '16px', color: '#d1d5db' }} />
+                  <div style={{ fontSize: '1.2rem', fontWeight: '600', marginBottom: '8px' }}>
+                    No alumni found
+                  </div>
+                  <div>Try adjusting your search or filters</div>
+                </div>
               )}
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        ) : (
+          <AnalyticsTab />
+        )}
+      </div>
 
-      {/* Delete Confirmation Modal */}
-      {deleteConfirm && (
-        <div style={styles.deleteModal} onClick={() => setDeleteConfirm(null)}>
-          <div style={styles.deleteModalContent} onClick={(e) => e.stopPropagation()}>
-            <Trash2 size={64} style={{...styles.deleteIcon, margin: '0 auto 16px'}} />
-            <h2 style={styles.deleteTitle}>Delete Alumni Profile</h2>
-            <p style={styles.deleteText}>
-              Are you sure you want to delete **{deleteConfirm.name}**'s profile? 
-              This action cannot be undone.
-            </p>
-            <div style={styles.deleteActions}>
-              <button onClick={() => setDeleteConfirm(null)} style={{...styles.deleteButton, backgroundColor: '#6b7280', color: 'white'}} onMouseEnter={(e) => e.target.style.backgroundColor = '#4b5563'} onMouseLeave={(e) => e.target.style.backgroundColor = '#6b7280'}>
-                Cancel
+      {/* Export Options Modal */}
+      {showExportOptions && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.7)',
+          backdropFilter: 'blur(5px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px',
+        }} onClick={() => setShowExportOptions(false)}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '12px',
+            padding: '30px',
+            maxWidth: '500px',
+            width: '100%',
+            boxShadow: '0 25px 50px rgba(0, 0, 0, 0.3)',
+          }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '700', marginBottom: '20px' }}>
+              Export Data
+            </h2>
+            <div style={{ display: 'grid', gap: '12px' }}>
+              <button
+                style={{ ...styles.button, backgroundColor: '#3b82f6', color: 'white' }}
+                onClick={() => { exportToCSV('all'); setShowExportOptions(false); }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#2563eb'}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = '#3b82f6'}
+              >
+                <Database size={18} />
+                Export All Data ({filteredData.length} records)
               </button>
-              <button onClick={() => handleDelete(deleteConfirm.id)} style={{...styles.deleteButton, backgroundColor: '#ef4444', color: 'white'}} onMouseEnter={(e) => e.target.style.backgroundColor = '#dc2626'} onMouseLeave={(e) => e.target.style.backgroundColor = '#ef4444'}>
-                Delete Profile
+              <button
+                style={{ ...styles.button, backgroundColor: '#10b981', color: 'white' }}
+                onClick={() => { exportToCSV('approved'); setShowExportOptions(false); }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#059669'}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = '#10b981'}
+              >
+                <CheckCircle size={18} />
+                Export Approved Only ({stats.approved} records)
+              </button>
+              <button
+                style={{ ...styles.button, backgroundColor: '#f59e0b', color: 'white' }}
+                onClick={() => { exportToCSV('pending'); setShowExportOptions(false); }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#d97706'}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = '#f59e0b'}
+              >
+                <Clock size={18} />
+                Export Pending Only ({stats.pending} records)
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* --- Image Lightbox Modal --- */}
-      {lightboxImage && (
-        <div style={styles.lightbox} onClick={() => setLightboxImage(null)}>
-          <button onClick={() => setLightboxImage(null)} style={styles.lightboxClose}>
-            ×
-          </button>
-          <img
-            src={lightboxImage}
-            alt="Profile full view"
-            style={styles.lightboxImage}
-            onClick={(e) => e.stopPropagation()} 
-          />
+      {/* Edit Modal */}
+      {editingAlumni && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.7)',
+          backdropFilter: 'blur(5px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px',
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '12px',
+            maxWidth: '800px',
+            width: '100%',
+            maxHeight: '90vh',
+            overflow: 'auto',
+            boxShadow: '0 25px 50px rgba(0, 0, 0, 0.3)',
+          }}>
+            <div style={{ padding: '30px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+                <h2 style={{ fontSize: '1.8rem', fontWeight: '700' }}>Edit Alumni Profile</h2>
+                <button
+                  onClick={handleCancelEdit}
+                  style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: '#9ca3af', cursor: 'pointer' }}
+                >
+                  ×
+                </button>
+              </div>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Full Name</label>
+                  <input
+                    type="text"
+                    value={editFormData.name || ''}
+                    onChange={e => setEditFormData({ ...editFormData, name: e.target.value })}
+                    style={{ ...styles.select, padding: '10px', fontSize: '0.9rem' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Email</label>
+                  <input
+                    type="email"
+                    value={editFormData.email || ''}
+                    onChange={e => setEditFormData({ ...editFormData, email: e.target.value })}
+                    style={{ ...styles.select, padding: '10px', fontSize: '0.9rem' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Phone Number</label>
+                  <input
+                    type="tel"
+                    value={editFormData.mobile || ''}
+                    onChange={e => setEditFormData({ ...editFormData, mobile: e.target.value })}
+                    style={{ ...styles.select, padding: '10px', fontSize: '0.9rem' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Department</label>
+                  <select
+                    value={editFormData.department || ''}
+                    onChange={e => setEditFormData({ ...editFormData, department: e.target.value })}
+                    style={{ ...styles.select, padding: '10px', fontSize: '0.9rem' }}
+                  >
+                    <option value="">Select Department</option>
+                    {departmentOptions.map(dept => (
+                      <option key={dept} value={dept}>{dept}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Graduation Year</label>
+                  <input
+                    type="number"
+                    value={editFormData.graduationYear || ''}
+                    onChange={e => setEditFormData({ ...editFormData, graduationYear: parseInt(e.target.value) })}
+                    style={{ ...styles.select, padding: '10px', fontSize: '0.9rem' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Job Title</label>
+                  <input
+                    type="text"
+                    value={editFormData.jobTitle || ''}
+                    onChange={e => setEditFormData({ ...editFormData, jobTitle: e.target.value })}
+                    style={{ ...styles.select, padding: '10px', fontSize: '0.9rem' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Company</label>
+                  <input
+                    type="text"
+                    value={editFormData.company || ''}
+                    onChange={e => setEditFormData({ ...editFormData, company: e.target.value })}
+                    style={{ ...styles.select, padding: '10px', fontSize: '0.9rem' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Location</label>
+                  <input
+                    type="text"
+                    value={editFormData.location || ''}
+                    onChange={e => setEditFormData({ ...editFormData, location: e.target.value })}
+                    style={{ ...styles.select, padding: '10px', fontSize: '0.9rem' }}
+                  />
+                </div>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Bio</label>
+                  <textarea
+                    value={editFormData.bio || ''}
+                    onChange={e => setEditFormData({ ...editFormData, bio: e.target.value })}
+                    style={{ ...styles.select, padding: '10px', fontSize: '0.9rem', minHeight: '100px' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Status</label>
+                  <select
+                    value={editFormData.status || ''}
+                    onChange={e => setEditFormData({ ...editFormData, status: e.target.value })}
+                    style={{ ...styles.select, padding: '10px', fontSize: '0.9rem' }}
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Verification Status</label>
+                  <select
+                    value={editFormData.verified || false}
+                    onChange={e => setEditFormData({ ...editFormData, verified: e.target.value === 'true' })}
+                    style={{ ...styles.select, padding: '10px', fontSize: '0.9rem' }}
+                  >
+                    <option value="true">Verified</option>
+                    <option value="false">Not Verified</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div style={{ display: 'flex', gap: '15px', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={handleCancelEdit}
+                  style={{ ...styles.button, backgroundColor: '#6b7280', color: 'white' }}
+                  onMouseEnter={e => e.currentTarget.style.backgroundColor = '#4b5563'}
+                  onMouseLeave={e => e.currentTarget.style.backgroundColor = '#6b7280'}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveEdit}
+                  style={{ ...styles.button, backgroundColor: '#10b981', color: 'white' }}
+                  onMouseEnter={e => e.currentTarget.style.backgroundColor = '#059669'}
+                  onMouseLeave={e => e.currentTarget.style.backgroundColor = '#10b981'}
+                >
+                  <Save size={16} />
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation */}
+      {deleteConfirm && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.7)',
+          backdropFilter: 'blur(5px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px',
+        }} onClick={() => setDeleteConfirm(null)}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '12px',
+            padding: '40px',
+            maxWidth: '500px',
+            width: '100%',
+            textAlign: 'center',
+            boxShadow: '0 25px 50px rgba(0, 0, 0, 0.3)',
+          }} onClick={e => e.stopPropagation()}>
+            <Trash2 size={60} color="#ef4444" style={{ marginBottom: '20px' }} />
+            <h2 style={{ fontSize: '1.8rem', fontWeight: '700', marginBottom: '15px' }}>
+              Delete Confirmation
+            </h2>
+            <p style={{ color: '#6b7280', lineHeight: 1.6, marginBottom: '30px' }}>
+              Are you sure you want to delete <strong>{deleteConfirm.name}</strong>'s profile?
+              This action cannot be undone.
+            </p>
+            <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                style={{ ...styles.button, backgroundColor: '#6b7280', color: 'white' }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#4b5563'}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = '#6b7280'}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDelete(deleteConfirm.id)}
+                style={{ ...styles.button, backgroundColor: '#ef4444', color: 'white' }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#dc2626'}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = '#ef4444'}
+              >
+                <Trash2 size={16} />
+                Delete Permanently
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notification */}
+      {notification && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          padding: '16px 24px',
+          borderRadius: '10px',
+          boxShadow: '0 10px 30px rgba(0, 0, 0, 0.15)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          zIndex: 2000,
+          backgroundColor: 'white',
+          borderLeft: '5px solid',
+          borderLeftColor: notification.type === 'success' ? '#10b981' : '#ef4444',
+          animation: 'slideIn 0.3s ease',
+        }}>
+          {notification.type === 'success' ? (
+            <CheckCircle size={24} color="#10b981" />
+          ) : (
+            <AlertCircle size={24} color="#ef4444" />
+          )}
+          <span style={{ fontWeight: '500' }}>{notification.message}</span>
         </div>
       )}
     </div>
