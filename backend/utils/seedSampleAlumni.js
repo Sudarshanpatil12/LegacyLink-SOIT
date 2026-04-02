@@ -11,7 +11,7 @@ const DEPARTMENT_MAP = {
 const SAMPLE_PASSWORD = 'sample123';
 
 const loadSampleAlumni = () => {
-  const sampleFilePath = path.join(__dirname, '../../src/data/sampleAlumni.js');
+  const sampleFilePath = path.join(__dirname, '../../frontend/src/data/sampleAlumni.js');
   const fileContents = fs.readFileSync(sampleFilePath, 'utf8');
   const sanitized = fileContents.replace(/export\s+const\s+sampleAlumni\s*=\s*/, 'module.exports = ');
   const sandbox = { module: { exports: [] }, exports: {} };

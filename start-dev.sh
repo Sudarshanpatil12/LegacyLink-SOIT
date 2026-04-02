@@ -32,7 +32,7 @@ if [ ! -d "node_modules" ]; then
 fi
 
 # Start backend in background
-echo "🌐 Starting backend server on port 5000..."
+echo "🌐 Starting backend server on port 5001..."
 npm run dev &
 BACKEND_PID=$!
 
@@ -41,7 +41,7 @@ sleep 3
 
 # Start frontend server
 echo "🎨 Starting frontend server..."
-cd ../my-app
+cd ../frontend
 if [ ! -f "package.json" ]; then
     echo "❌ Frontend directory not found or package.json missing"
     kill $BACKEND_PID
@@ -63,7 +63,7 @@ echo ""
 echo "🎉 Development environment started successfully!"
 echo "=================================================="
 echo "📱 Frontend: http://localhost:3000"
-echo "🔗 Backend API: http://localhost:5000/api"
+echo "🔗 Backend API: http://localhost:5001/api"
 echo "📊 MongoDB: mongodb://localhost:27017/rgpv_alumni"
 echo ""
 echo "📋 Available endpoints:"
@@ -93,4 +93,3 @@ trap cleanup SIGINT SIGTERM
 
 # Wait for both processes
 wait $BACKEND_PID $FRONTEND_PID
-
