@@ -3,86 +3,138 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const passport = require('passport');
 const path = require('path');
-require('dotenv').config();
 
-// Import routes
+require('dotenv').config();
+require('./config/passport');
+
 const authRoutes = require('./routes/auth');
 const alumniRoutes = require('./routes/alumni');
 const adminRoutes = require('./routes/admin');
 const eventsRoutes = require('./routes/events');
 const { ensureDefaultAdmin } = require('./utils/seedAdmin');
 const { ensureSampleAlumni } = require('./utils/seedSampleAlumni');
-
-// Import middleware
 const { errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
 
-// Middleware
-// During development allow all origins to simplify local testing.
-// In production, restrict to the configured FRONTEND_URL.
+let dbConnectPromise = null;
+let startupSeedPromise = null;
+
+const getFrontendOrigin = () => process.env.FRONTEND_URL || 'http://localhost:3000';
+
+const runStartupSeeds = async () => {
+  if (!startupSeedPromise) {
+    startupSeedPromise = (async () => {
+      await ensureDefaultAdmin();
+      try {
+        await ensureSampleAlumni();
+      } catch (error) {
+        console.error('Sample alumni sync failed:', error.message);
+      }
+    })().catch((error) => {
+      startupSeedPromise = null;
+      throw error;
+    });
+  }
+
+  return startupSeedPromise;
+};
+
+const connectToDatabase = async () => {
+  if (mongoose.connection.readyState === 1) {
+    return mongoose.connection;
+  }
+
+  if (!dbConnectPromise) {
+    dbConnectPromise = mongoose.connect(
+      process.env.MONGODB_URI || 'mongodb://localhost:27017/rgpv_alumni'
+    )
+      .then(async (connection) => {
+        console.log('Connected to MongoDB');
+        await runStartupSeeds();
+        return connection;
+      })
+      .catch((error) => {
+        dbConnectPromise = null;
+        throw error;
+      });
+  }
+
+  return dbConnectPromise;
+};
+
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' ? (process.env.FRONTEND_URL || 'http://localhost:3000') : true,
+  origin: process.env.NODE_ENV === 'production' ? getFrontendOrigin() : true,
   credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-// Passport middleware
 app.use(passport.initialize());
 
-// MongoDB connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/rgpv_alumni')
-.then(async () => {
-  console.log('✅ Connected to MongoDB');
-  await ensureDefaultAdmin();
+app.use(async (req, res, next) => {
   try {
-    await ensureSampleAlumni();
+    await connectToDatabase();
+    next();
   } catch (error) {
-    console.error('Sample alumni sync failed:', error.message);
+    console.error('MongoDB connection error:', error);
+    res.status(503).json({
+      success: false,
+      message: 'Database connection failed'
+    });
   }
-})
-.catch((error) => {
-  console.error('❌ MongoDB connection error:', error);
-  process.exit(1);
 });
 
-// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/alumni', alumniRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/events', eventsRoutes);
 
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
-    message: 'RGPV Alumni API is running',
-    timestamp: new Date().toISOString()
-  });
+app.get('/api/health', async (req, res) => {
+  try {
+    await connectToDatabase();
+    res.json({
+      status: 'OK',
+      message: 'RGPV Alumni API is running',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(503).json({
+      status: 'ERROR',
+      message: 'Database connection failed',
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
-// Root endpoint (helpful for quick browser checks)
 app.get('/', (req, res) => {
-  res.send(`<h2>RGPV Alumni API</h2><p>Server is running. Use <a href="/api/health">/api/health</a> for a JSON status.</p>`);
+  res.send('<h2>RGPV Alumni API</h2><p>Server is running. Use <a href="/api/health">/api/health</a> for a JSON status.</p>');
 });
 
-// Error handling middleware
 app.use(errorHandler);
 
-// Serve static files in production
-if (process.env.NODE_ENV === 'production') {
+if (process.env.NODE_ENV === 'production' && process.env.SERVE_FRONTEND === 'true') {
   app.use(express.static(path.join(__dirname, '../frontend/build')));
-  
+
   app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
   });
 }
 
-const PORT = process.env.PORT || 5000;
+if (require.main === module) {
+  const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📱 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
-  console.log(`🔗 API URL: http://localhost:${PORT}/api`);
-});
+  connectToDatabase()
+    .then(() => {
+      app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+        console.log(`Frontend URL: ${getFrontendOrigin()}`);
+        console.log(`API URL: http://localhost:${PORT}/api`);
+      });
+    })
+    .catch((error) => {
+      console.error('MongoDB startup error:', error);
+      process.exit(1);
+    });
+}
+
+module.exports = app;
