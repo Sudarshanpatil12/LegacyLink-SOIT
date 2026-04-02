@@ -498,16 +498,6 @@ const styles = {
   headerStat: {
     textAlign: 'center',
   },
-  statNumber: {
-    fontSize: '2rem',
-    fontWeight: '800',
-    marginBottom: '4px',
-  },
-  statLabel: {
-    fontSize: '0.9rem',
-    opacity: 0.8,
-    fontWeight: '500',
-  },
   mainContainer: {
     maxWidth: '1200px',
     margin: '0 auto',

@@ -278,7 +278,7 @@ const FacultyPage = () => {
         phone: "(555) 100-0015",
         office: "IT Block, Room 207",
         bio: "Prof. Shukla specializes in system design and application development. He brings practical industry experience to the classroom.",
-        image: "/faculty/d.png",
+        image: "/faculty/tuhin_mam.png",
         research: "System Design, Programming, Cloud Computing",
         education: "MTech in IT, RGPV University",
         qualifications: "M.Tech (IT), B.Tech (IT)",

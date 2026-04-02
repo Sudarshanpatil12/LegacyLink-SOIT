@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const mongoosePaginate = require('mongoose-paginate-v2');
+const bcrypt = require('bcryptjs');
 
 const alumniSchema = new mongoose.Schema({
   // Basic Information
@@ -14,6 +15,19 @@ const alumniSchema = new mongoose.Schema({
     unique: true,
     lowercase: true,
     trim: true
+  },
+  enrollmentNumber: {
+    type: String,
+    required: true,
+    unique: true,
+    uppercase: true,
+    trim: true
+  },
+  password: {
+    type: String,
+    required: true,
+    minlength: 6,
+    select: false
   },
   mobile: {
     type: String,
@@ -123,6 +137,20 @@ const alumniSchema = new mongoose.Schema({
     type: String,
     trim: true
   }],
+  experience: [{
+    type: String,
+    trim: true
+  }],
+  pendingUpdates: {
+    type: Object,
+    default: null
+  },
+  pendingUpdateStatus: {
+    type: String,
+    enum: ['none', 'pending', 'approved', 'rejected'],
+    default: 'none'
+  },
+  pendingUpdateAt: Date,
   
   // Status and Verification
   status: {
@@ -171,12 +199,10 @@ const alumniSchema = new mongoose.Schema({
 });
 
 // Indexes for better performance
-alumniSchema.index({ email: 1 });
 alumniSchema.index({ graduationYear: 1 });
 alumniSchema.index({ department: 1 });
 alumniSchema.index({ company: 1 });
 alumniSchema.index({ status: 1 });
-alumniSchema.index({ linkedinId: 1 });
 
 // Virtual for full profile URL
 alumniSchema.virtual('profileUrl').get(function() {
@@ -213,15 +239,45 @@ alumniSchema.methods.getPublicProfile = function() {
   delete profile.verificationToken;
   delete profile.verificationExpires;
   delete profile.linkedinId;
+  delete profile.password;
+  delete profile.pendingUpdates;
+  delete profile.pendingUpdateStatus;
+  delete profile.pendingUpdateAt;
   delete profile.__v;
   
   return profile;
+};
+
+alumniSchema.methods.getSelfProfile = function() {
+  const profile = this.toObject();
+  delete profile.password;
+  delete profile.verificationToken;
+  delete profile.verificationExpires;
+  delete profile.linkedinId;
+  delete profile.__v;
+  return profile;
+};
+
+alumniSchema.methods.comparePassword = function(candidatePassword) {
+  return bcrypt.compare(candidatePassword, this.password);
 };
 
 // Pre-save middleware to update lastUpdated
 alumniSchema.pre('save', function(next) {
   this.lastUpdated = new Date();
   next();
+});
+
+alumniSchema.pre('save', async function(next) {
+  if (!this.isModified('password')) return next();
+
+  try {
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+    next();
+  } catch (error) {
+    next(error);
+  }
 });
 
 // Add pagination plugin

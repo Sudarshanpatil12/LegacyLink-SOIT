@@ -24,13 +24,16 @@ export const AuthProvider = ({ children }) => {
         const token = localStorage.getItem('authToken');
         if (token) {
           const response = await apiService.getCurrentUser();
-          setUser(response.data.user);
-          setUserType(response.data.userType);
+          setUser(response.user || null);
+          setUserType(response.userType || null);
         }
       } catch (error) {
         console.error('Auth check failed:', error);
         // Clear invalid token
         localStorage.removeItem('authToken');
+        localStorage.removeItem('isAdminLoggedIn');
+        setUser(null);
+        setUserType(null);
       } finally {
         setLoading(false);
       }
@@ -40,16 +43,16 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   // Login alumni
-  const loginAlumni = async (email, password) => {
+  const loginAlumni = async (identifier, password) => {
     try {
       setError(null);
-      const response = await apiService.loginAlumni(email, password);
+      const response = await apiService.loginAlumni(identifier, password);
       
       if (response.success) {
         localStorage.setItem('authToken', response.token);
         setUser(response.alumni);
         setUserType('alumni');
-        return { success: true, data: response.alumni };
+        return { success: true, data: response.alumni, message: response.message };
       }
     } catch (error) {
       setError(error.message);
@@ -83,10 +86,12 @@ export const AuthProvider = ({ children }) => {
       const response = await apiService.registerAlumni(alumniData);
       
       if (response.success) {
-        localStorage.setItem('authToken', response.token);
-        setUser(response.alumni);
-        setUserType('alumni');
-        return { success: true, data: response.alumni };
+        if (response.token) {
+          localStorage.setItem('authToken', response.token);
+          setUser(response.alumni);
+          setUserType('alumni');
+        }
+        return { success: true, data: response.alumni, message: response.message };
       }
     } catch (error) {
       setError(error.message);
@@ -96,7 +101,8 @@ export const AuthProvider = ({ children }) => {
 
   // LinkedIn OAuth login
   const loginWithLinkedIn = () => {
-    window.location.href = `${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/auth/linkedin`;
+    const apiBase = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+    window.location.href = `${apiBase}/auth/linkedin`;
   };
 
   // Handle LinkedIn callback
@@ -104,9 +110,9 @@ export const AuthProvider = ({ children }) => {
     try {
       localStorage.setItem('authToken', token);
       const response = await apiService.getCurrentUser();
-      setUser(response.data.user);
-      setUserType(response.data.userType);
-      return { success: true, data: response.data.user };
+      setUser(response.user || null);
+      setUserType(response.userType || null);
+      return { success: true, data: response.user };
     } catch (error) {
       setError(error.message);
       return { success: false, error: error.message };
@@ -121,7 +127,7 @@ export const AuthProvider = ({ children }) => {
       
       if (response.success) {
         setUser(response.alumni);
-        return { success: true, data: response.alumni };
+        return { success: true, data: response.alumni, message: response.message };
       }
     } catch (error) {
       setError(error.message);
@@ -200,4 +206,3 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
-

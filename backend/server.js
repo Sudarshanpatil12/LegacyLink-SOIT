@@ -10,6 +10,8 @@ const authRoutes = require('./routes/auth');
 const alumniRoutes = require('./routes/alumni');
 const adminRoutes = require('./routes/admin');
 const eventsRoutes = require('./routes/events');
+const { ensureDefaultAdmin } = require('./utils/seedAdmin');
+const { ensureSampleAlumni } = require('./utils/seedSampleAlumni');
 
 // Import middleware
 const { errorHandler } = require('./middleware/errorHandler');
@@ -30,12 +32,15 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(passport.initialize());
 
 // MongoDB connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/rgpv_alumni', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => {
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/rgpv_alumni')
+.then(async () => {
   console.log('✅ Connected to MongoDB');
+  await ensureDefaultAdmin();
+  try {
+    await ensureSampleAlumni();
+  } catch (error) {
+    console.error('Sample alumni sync failed:', error.message);
+  }
 })
 .catch((error) => {
   console.error('❌ MongoDB connection error:', error);
@@ -67,10 +72,10 @@ app.use(errorHandler);
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../my-app/build')));
+  app.use(express.static(path.join(__dirname, '../build')));
   
   app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../my-app/build', 'index.html'));
+    res.sendFile(path.join(__dirname, '../build', 'index.html'));
   });
 }
 
@@ -81,4 +86,3 @@ app.listen(PORT, () => {
   console.log(`📱 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
   console.log(`🔗 API URL: http://localhost:${PORT}/api`);
 });
-

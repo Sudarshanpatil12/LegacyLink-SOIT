@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useAlumni } from '../context/AlumniContext';
+import { useAuth } from '../context/AuthContext';
 import { FaUserCircle, FaSignOutAlt, FaBars, FaTimes } from 'react-icons/fa';
 
 const Header = () => {
-  const { currentUser, logout } = useAlumni();
+  const { user, userType, logout, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -341,7 +341,7 @@ const Header = () => {
             <span>+91 95228 76912</span>
           </div>
           <div style={styles.topBarRight}>
-            {currentUser ? (
+            {isAuthenticated() && userType === 'alumni' ? (
               <div style={{ position: 'relative' }}>
                 <button 
                   onClick={toggleDropdown}
@@ -363,7 +363,7 @@ const Header = () => {
                   }}
                 >
                   <FaUserCircle size={20} />
-                  <span>{currentUser.name || 'Profile'}</span>
+                  <span>{user?.name || 'Profile'}</span>
                 </button>
                 {isDropdownOpen && (
                   <div style={{
@@ -379,7 +379,7 @@ const Header = () => {
                     overflow: 'hidden',
                   }}>
                     <Link 
-                      to="/complete-profile" 
+                      to="/alumni-portal" 
                       style={{
                         display: 'block',
                         padding: '10px 15px',
@@ -504,6 +504,15 @@ const Header = () => {
               // Show regular login/register buttons when no one is logged in
               <>
                 <Link 
+                  to="/alumni-portal" 
+                  style={{
+                    ...styles.authButton,
+                    ...styles.loginBtn
+                  }}
+                >
+                  Alumni Login
+                </Link>
+                <Link 
                   to="/login" 
                   style={{
                     ...styles.authButton,
@@ -527,7 +536,7 @@ const Header = () => {
                     }
                   }}
                 >
-                  Register
+                  Alumni Register
                 </Link>
               </>
             )}
@@ -625,6 +634,26 @@ const Header = () => {
                 }}
               >
                 Alumni Directory
+              </Link>
+            </li>
+            <li style={styles.navItem}>
+              <Link 
+                to="/alumni-portal" 
+                style={getNavLinkStyle('/alumni-portal')}
+                onMouseEnter={(e) => {
+                  if (!isNavActive('/alumni-portal')) {
+                    e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.2)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isNavActive('/alumni-portal')) {
+                    e.target.style.backgroundColor = 'transparent';
+                  } else {
+                    e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.3)';
+                  }
+                }}
+              >
+                Alumni Portal
               </Link>
             </li>
             <li style={styles.navItem}>
@@ -752,6 +781,15 @@ const Header = () => {
           </li>
           <li>
             <Link 
+              to="/alumni-portal" 
+              style={getNavLinkStyle('/alumni-portal')}
+              onClick={closeMobileMenu}
+            >
+              Alumni Portal
+            </Link>
+          </li>
+          <li>
+            <Link 
               to="/jobs" 
               style={getNavLinkStyle('/jobs')}
               onClick={closeMobileMenu}
@@ -778,11 +816,16 @@ const Header = () => {
             </Link>
           </li>
           {/* Show auth actions in mobile menu when not logged in */}
-          {!currentUser && !isAdminLoggedIn && (
+          {!isAuthenticated() && !isAdminLoggedIn && (
             <>
               <li>
                 <Link to="/login" style={getNavLinkStyle('/login')} onClick={closeMobileMenu}>
-                  Login
+                  Admin Login
+                </Link>
+              </li>
+              <li>
+                <Link to="/alumni-portal" style={getNavLinkStyle('/alumni-portal')} onClick={closeMobileMenu}>
+                  Alumni Login
                 </Link>
               </li>
               <li>

@@ -1,7 +1,7 @@
 // src/components/AlumniDirectory.js
 import React, { useState, useEffect } from 'react';
 import { Search, MapPin, Briefcase, GraduationCap, Mail, Phone, Linkedin, X } from 'lucide-react';
-import { sampleAlumni } from '../data/sampleAlumni';
+import apiService from '../services/api';
 
 const AlumniDirectory = () => {
   const [alumniData, setAlumniData] = useState([]);
@@ -9,61 +9,45 @@ const AlumniDirectory = () => {
   const [selectedDepartment, setSelectedDepartment] = useState('all');
   const [selectedYear, setSelectedYear] = useState('all');
   const [selectedAlumni, setSelectedAlumni] = useState(null);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     loadAlumniData();
-    const interval = setInterval(loadAlumniData, 3000);
-    return () => clearInterval(interval);
   }, []);
 
-  const loadAlumniData = () => {
-    const storedData = localStorage.getItem('alumniData');
-    let allAlumni = [];
-
-    if (storedData) {
-      try {
-        const parsed = JSON.parse(storedData);
-        if (Array.isArray(parsed)) allAlumni = parsed;
-        else if (parsed && typeof parsed === 'object') allAlumni = [parsed];
-      } catch (err) {
-        console.error('Parse Error:', err);
-      }
+  const loadAlumniData = async () => {
+    try {
+      const response = await apiService.getAlumni({ page: 1, limit: 500, status: 'approved' });
+      const approvedAlumni = Array.isArray(response.data) ? response.data : [];
+      setAlumniData(approvedAlumni);
+      setLoadError('');
+    } catch (error) {
+      console.error('Failed to load alumni directory:', error);
+      setAlumniData([]);
+      setLoadError(error.message || 'Failed to load alumni directory.');
     }
-
-    const mergedMap = new Map();
-    (sampleAlumni || []).forEach(a => a?.id && mergedMap.set(a.id, a));
-    allAlumni.forEach(a => a?.id && mergedMap.set(a.id, a));
-
-    const approvedAlumni = Array.from(mergedMap.values())
-      .filter(alum => alum.status === 'approved');
-    
-    setAlumniData(approvedAlumni);
   };
 
   const departments = [
     { value: 'all', label: 'All Departments' },
-    
-    { value: 'Computer Science & Business Systems (CSBS)', label: 'CS & Business Systems' },
-    { value: 'AI & Machine Learning (AIML)', label: 'AI & Machine Learning' },
-    { value: 'CSE Data Science (CSE-DS)', label: 'CSE Data Science' },
-    { value: 'Masters', label: 'Masters' },
-    
+    ...[...new Set(alumniData.map((alumni) => alumni.department).filter(Boolean))]
+      .sort()
+      .map((department) => ({ value: department, label: department }))
   ];
 
   const graduationYears = [
     { value: 'all', label: 'All Years' },
-    ...Array.from({ length: 8 }, (_, i) => {
-      const year = 2022 + i;
-      return { value: year.toString(), label: year.toString() };
-    }),
+    ...[...new Set(alumniData.map((alumni) => alumni.graduationYear).filter(Boolean))]
+      .sort((a, b) => b - a)
+      .map((year) => ({ value: year.toString(), label: year.toString() }))
   ];
 
   const filteredAlumni = alumniData.filter(alumni => {
     const matchesSearch = 
       alumni.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      alumni.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      alumni.jobTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      alumni.department.toLowerCase().includes(searchTerm.toLowerCase());
+      (alumni.company || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (alumni.jobTitle || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (alumni.department || '').toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesDepartment = selectedDepartment === 'all' || alumni.department === selectedDepartment;
     const matchesYear = selectedYear === 'all' || alumni.graduationYear.toString() === selectedYear;
@@ -158,6 +142,13 @@ const AlumniDirectory = () => {
         </div>
 
         {/* Alumni Grid */}
+        {loadError && (
+          <div style={{ ...styles.noResults, color: '#b91c1c', border: '1px solid #fecaca' }}>
+            <h3>Directory unavailable</h3>
+            <p>{loadError}</p>
+          </div>
+        )}
+
         <div style={styles.grid}>
           {filteredAlumni.map(alumni => (
             <div
@@ -199,27 +190,33 @@ const AlumniDirectory = () => {
                 </div>
               </div>
               
-              <p style={styles.cardBio}>{alumni.bio.substring(0, 120)}...</p>
+              <p style={styles.cardBio}>
+                {alumni.bio ? `${alumni.bio.substring(0, 120)}${alumni.bio.length > 120 ? '...' : ''}` : 'No professional bio added yet.'}
+              </p>
               
               <div style={styles.cardActions}>
-                <button
-                  style={styles.linkedinButton}
-                  onClick={e => {
-                    e.stopPropagation();
-                    window.open(alumni.linkedinUrl, '_blank');
-                  }}
-                >
-                  <Linkedin size={16} /> LinkedIn
-                </button>
-                <button
-                  style={styles.emailButton}
-                  onClick={e => {
-                    e.stopPropagation();
-                    window.location.href = `mailto:${alumni.email}`;
-                  }}
-                >
-                  <Mail size={16} /> Email
-                </button>
+                {alumni.linkedinUrl && (
+                  <button
+                    style={styles.linkedinButton}
+                    onClick={e => {
+                      e.stopPropagation();
+                      window.open(alumni.linkedinUrl, '_blank');
+                    }}
+                  >
+                    <Linkedin size={16} /> LinkedIn
+                  </button>
+                )}
+                {alumni.email && (
+                  <button
+                    style={styles.emailButton}
+                    onClick={e => {
+                      e.stopPropagation();
+                      window.location.href = `mailto:${alumni.email}`;
+                    }}
+                  >
+                    <Mail size={16} /> Email
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -283,7 +280,7 @@ const AlumniDirectory = () => {
                     <Mail size={20} style={styles.detailIcon} />
                     <div>
                       <div style={styles.detailLabel}>Email</div>
-                      <div style={styles.detailValue}>{selectedAlumni.email}</div>
+                      <div style={styles.detailValue}>{selectedAlumni.email || 'Not available'}</div>
                     </div>
                   </div>
                   
@@ -291,7 +288,7 @@ const AlumniDirectory = () => {
                     <Phone size={20} style={styles.detailIcon} />
                     <div>
                       <div style={styles.detailLabel}>Phone</div>
-                      <div style={styles.detailValue}>{selectedAlumni.mobile}</div>
+                      <div style={styles.detailValue}>{selectedAlumni.mobile || 'Not available'}</div>
                     </div>
                   </div>
                   
@@ -324,25 +321,29 @@ const AlumniDirectory = () => {
               {/* Bio Section */}
               <div style={styles.bioSection}>
                 <h3 style={styles.sectionTitle}>Professional Bio</h3>
-                <p style={styles.bioText}>{selectedAlumni.bio}</p>
+                <p style={styles.bioText}>{selectedAlumni.bio || 'No professional bio added yet.'}</p>
               </div>
 
               {/* Action Buttons */}
               <div style={styles.actionButtons}>
-                <button
-                  style={styles.profileLinkedinButton}
-                  onClick={() => window.open(selectedAlumni.linkedinUrl, '_blank')}
-                >
-                  <Linkedin size={20} />
-                  Connect on LinkedIn
-                </button>
-                <button
-                  style={styles.profileEmailButton}
-                  onClick={() => window.location.href = `mailto:${selectedAlumni.email}`}
-                >
-                  <Mail size={20} />
-                  Send Email
-                </button>
+                {selectedAlumni.linkedinUrl && (
+                  <button
+                    style={styles.profileLinkedinButton}
+                    onClick={() => window.open(selectedAlumni.linkedinUrl, '_blank')}
+                  >
+                    <Linkedin size={20} />
+                    Connect on LinkedIn
+                  </button>
+                )}
+                {selectedAlumni.email && (
+                  <button
+                    style={styles.profileEmailButton}
+                    onClick={() => window.location.href = `mailto:${selectedAlumni.email}`}
+                  >
+                    <Mail size={20} />
+                    Send Email
+                  </button>
+                )}
               </div>
             </div>
           </div>

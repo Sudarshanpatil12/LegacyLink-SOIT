@@ -8,6 +8,7 @@ import About from './components/About';
 import EventsPage from './components/EventsPage';
 import AlumniDirectory from './components/AlumniDirectory';
 import AlumniRegistration from './components/AlumniRegistration';
+import AlumniPortal from './components/AlumniPortal';
 import JobsPage from "./components/JobsPage";
 import Footer from './components/Footer';
 import Contact from './components/Contact';
@@ -38,6 +39,7 @@ function App() {
         <main style={{ flex: 1 }}>
           <Routes>
             <Route path="/register" element={<AlumniRegistration/>} />
+            <Route path="/alumni-portal" element={<AlumniPortal/>} />
             <Route path="/login" element={<Login/>} />
             <Route path="/admin" element={<AdminPanel/>} />
             <Route path="/auth/callback" element={<LinkedInCallback/>} />

@@ -436,4 +436,5 @@ export const sampleAlumni = [
   registrationDate: "2024-10-02"
 }
 
+
 ];

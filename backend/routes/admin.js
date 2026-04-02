@@ -3,6 +3,7 @@ const Alumni = require('../models/Alumni');
 const Admin = require('../models/Admin');
 const Event = require('../models/Event');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
+const { sendApprovalEmail } = require('../utils/emailService');
 
 const router = express.Router();
 
@@ -126,6 +127,33 @@ router.get('/alumni', async (req, res) => {
   }
 });
 
+// Get a single alumni record with full admin details
+router.get('/alumni/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const alumni = await Alumni.findById(id);
+
+    if (!alumni) {
+      return res.status(404).json({
+        success: false,
+        message: 'Alumni not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: alumni
+    });
+  } catch (error) {
+    console.error('Admin get alumni by id error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch alumni details',
+      error: error.message
+    });
+  }
+});
+
 // Update alumni status
 router.put('/alumni/:id/status', async (req, res) => {
   try {
@@ -139,14 +167,12 @@ router.put('/alumni/:id/status', async (req, res) => {
       });
     }
 
-    const alumni = await Alumni.findByIdAndUpdate(
-      id,
-      { 
-        status,
-        ...(status === 'approved' && { isVerified: true })
-      },
-      { new: true }
-    );
+    const update = {
+      status,
+      ...(status === 'approved' && { isVerified: true })
+    };
+
+    const alumni = await Alumni.findByIdAndUpdate(id, update, { new: true });
 
     if (!alumni) {
       return res.status(404).json({
@@ -155,10 +181,20 @@ router.put('/alumni/:id/status', async (req, res) => {
       });
     }
 
+    let emailResult = null;
+    if (status === 'approved') {
+      try {
+        emailResult = await sendApprovalEmail(alumni);
+      } catch (emailError) {
+        console.error('Approval email error:', emailError);
+      }
+    }
+
     res.json({
       success: true,
       message: `Alumni status updated to ${status}`,
-      data: alumni
+      data: alumni,
+      email: emailResult
     });
 
   } catch (error) {
@@ -166,6 +202,179 @@ router.put('/alumni/:id/status', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to update alumni status',
+      error: error.message
+    });
+  }
+});
+
+// Approve pending alumni profile updates
+router.put('/alumni/:id/updates/approve', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const alumni = await Alumni.findById(id);
+
+    if (!alumni) {
+      return res.status(404).json({
+        success: false,
+        message: 'Alumni not found'
+      });
+    }
+
+    if (!alumni.pendingUpdates) {
+      return res.status(400).json({
+        success: false,
+        message: 'No pending updates to approve'
+      });
+    }
+
+    Object.assign(alumni, alumni.pendingUpdates);
+    alumni.pendingUpdates = null;
+    alumni.pendingUpdateStatus = 'approved';
+    alumni.pendingUpdateAt = null;
+
+    await alumni.save();
+
+    let emailResult = null;
+    try {
+      emailResult = await sendApprovalEmail(alumni);
+    } catch (emailError) {
+      console.error('Update approval email error:', emailError);
+    }
+
+    res.json({
+      success: true,
+      message: 'Pending updates approved',
+      data: alumni,
+      email: emailResult
+    });
+  } catch (error) {
+    console.error('Approve updates error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to approve updates',
+      error: error.message
+    });
+  }
+});
+
+// Reject pending alumni profile updates
+router.put('/alumni/:id/updates/reject', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const alumni = await Alumni.findById(id);
+
+    if (!alumni) {
+      return res.status(404).json({
+        success: false,
+        message: 'Alumni not found'
+      });
+    }
+
+    if (!alumni.pendingUpdates) {
+      return res.status(400).json({
+        success: false,
+        message: 'No pending updates to reject'
+      });
+    }
+
+    alumni.pendingUpdates = null;
+    alumni.pendingUpdateStatus = 'rejected';
+    alumni.pendingUpdateAt = null;
+
+    await alumni.save();
+
+    res.json({
+      success: true,
+      message: 'Pending updates rejected',
+      data: alumni
+    });
+  } catch (error) {
+    console.error('Reject updates error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to reject updates',
+      error: error.message
+    });
+  }
+});
+
+// Update alumni profile directly from admin panel
+router.put('/alumni/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const allowedFields = [
+      'name',
+      'email',
+      'mobile',
+      'department',
+      'graduationYear',
+      'jobTitle',
+      'company',
+      'location',
+      'bio',
+      'linkedinUrl',
+      'status',
+      'isVerified',
+      'enrollmentNumber',
+      'skills',
+      'achievements',
+      'experience'
+    ];
+
+    const updates = {};
+
+    allowedFields.forEach((field) => {
+      if (req.body[field] !== undefined) {
+        updates[field] = req.body[field];
+      }
+    });
+
+    if (updates.email) {
+      updates.email = String(updates.email).toLowerCase().trim();
+    }
+
+    if (updates.enrollmentNumber) {
+      updates.enrollmentNumber = String(updates.enrollmentNumber).toUpperCase().trim();
+    }
+
+    if (updates.status && !['pending', 'approved', 'rejected'].includes(updates.status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid alumni status'
+      });
+    }
+
+    const alumni = await Alumni.findById(id);
+
+    if (!alumni) {
+      return res.status(404).json({
+        success: false,
+        message: 'Alumni not found'
+      });
+    }
+
+    Object.assign(alumni, updates);
+    alumni.lastUpdated = new Date();
+    alumni.pendingUpdates = null;
+    alumni.pendingUpdateStatus = 'none';
+    alumni.pendingUpdateAt = null;
+
+    if (updates.status === 'approved' && updates.isVerified === undefined) {
+      alumni.isVerified = true;
+    }
+
+    await alumni.save();
+
+    res.json({
+      success: true,
+      message: 'Alumni profile updated successfully',
+      data: alumni
+    });
+  } catch (error) {
+    console.error('Admin update alumni error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update alumni profile',
       error: error.message
     });
   }
@@ -476,4 +685,3 @@ router.delete('/admins/:id', async (req, res) => {
 });
 
 module.exports = router;
-

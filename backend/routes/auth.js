@@ -1,5 +1,6 @@
 const express = require('express');
 const passport = require('passport');
+const mongoose = require('mongoose');
 const Alumni = require('../models/Alumni');
 const Admin = require('../models/Admin');
 const { generateToken } = require('../middleware/auth');
@@ -37,12 +38,22 @@ router.get('/linkedin/callback',
 // Alumni registration
 router.post('/register', async (req, res) => {
   try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({
+        success: false,
+        message: 'Database is unavailable. Please try again shortly.'
+      });
+    }
+
     const {
       name,
       email,
+      enrollmentNumber,
+      password,
       mobile,
       graduationYear,
       department,
+      profileImage,
       jobTitle,
       company,
       location,
@@ -52,52 +63,80 @@ router.post('/register', async (req, res) => {
       achievements = []
     } = req.body;
 
-    // Check if alumni already exists
-    const existingAlumni = await Alumni.findOne({ email });
-    if (existingAlumni) {
+    if (!enrollmentNumber || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Alumni with this email already exists'
+        message: 'Enrollment number and password are required'
       });
     }
 
-    // Create new alumni (auto-approve so users are immediately visible/active)
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters long'
+      });
+    }
+
+    const trimmedLinkedin = String(linkedinUrl || '').trim();
+    if (trimmedLinkedin && !/^https?:\/\/(www\.)?linkedin\.com\/in\/[a-zA-Z0-9-]+\/?$/.test(trimmedLinkedin)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a valid LinkedIn profile URL (linkedin.com/in/...) or leave it empty'
+      });
+    }
+
+    // Check if alumni already exists
+    const existingAlumni = await Alumni.findOne({
+      $or: [
+        { email: String(email || '').toLowerCase() },
+        { enrollmentNumber: String(enrollmentNumber || '').toUpperCase() }
+      ]
+    });
+    if (existingAlumni) {
+      return res.status(400).json({
+        success: false,
+        message: 'Alumni with this email or enrollment number already exists'
+      });
+    }
+
+    // Create new alumni (pending approval)
     const alumni = new Alumni({
       name,
       email,
+      enrollmentNumber,
+      password,
       mobile,
       graduationYear,
       department,
+      profileImage,
       jobTitle,
       company,
       location,
       bio,
-      linkedinUrl,
+      linkedinUrl: trimmedLinkedin || undefined,
       skills,
       achievements,
-      // set to approved so any user can register and appear in directory
-      status: 'approved',
-      isVerified: true
+      status: 'pending',
+      isVerified: false
     });
 
     await alumni.save();
 
-    // Generate token for immediate login
-    const token = generateToken({
-      id: alumni._id,
-      email: alumni.email,
-      type: 'alumni'
-    });
-
     res.status(201).json({
       success: true,
-      message: 'Registration successful. Your account is active.',
-      token,
-      alumni: alumni.getPublicProfile()
+      message: 'Registration submitted. Your account will be available after admin approval.',
+      alumni: alumni.getSelfProfile()
     });
 
   } catch (error) {
     console.error('Registration error:', error);
+    if (error.name === 'ValidationError') {
+      const firstError = Object.values(error.errors || {})[0];
+      return res.status(400).json({
+        success: false,
+        message: firstError?.message || 'Validation failed'
+      });
+    }
     res.status(500).json({
       success: false,
       message: 'Registration failed',
@@ -109,11 +148,28 @@ router.post('/register', async (req, res) => {
 // Alumni login (if they have a password set)
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({
+        success: false,
+        message: 'Database is unavailable. Please try again shortly.'
+      });
+    }
 
-    // For now, we'll use a simple approach since we don't have password field
-    // In a real implementation, you'd add password field to Alumni model
-    const alumni = await Alumni.findOne({ email });
+    const { enrollmentNumber, email, identifier, password } = req.body;
+    const loginValue = identifier || enrollmentNumber || email;
+
+    if (!loginValue || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Enrollment number and password are required'
+      });
+    }
+
+    const loginFilter = loginValue.includes('@')
+      ? { email: String(loginValue).toLowerCase() }
+      : { enrollmentNumber: String(loginValue).toUpperCase() };
+
+    const alumni = await Alumni.findOne(loginFilter).select('+password');
     
     if (!alumni) {
       return res.status(401).json({
@@ -126,6 +182,21 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({
         success: false,
         message: 'Account pending approval'
+      });
+    }
+
+    if (!alumni.password) {
+      return res.status(401).json({
+        success: false,
+        message: 'Password not set for this account. Please register again.'
+      });
+    }
+
+    const isMatch = await alumni.comparePassword(password);
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
       });
     }
 
@@ -144,7 +215,7 @@ router.post('/login', async (req, res) => {
       success: true,
       message: 'Login successful',
       token,
-      alumni: alumni.getPublicProfile()
+      alumni: alumni.getSelfProfile()
     });
 
   } catch (error) {
@@ -236,7 +307,7 @@ router.get('/me', authenticateToken, async (req, res) => {
     } else {
       return res.json({
         success: true,
-        user: req.alumni.getPublicProfile(),
+        user: req.alumni.getSelfProfile(),
         userType: 'alumni'
       });
     }
@@ -261,8 +332,8 @@ router.put('/profile', authenticateToken, async (req, res) => {
     }
 
     const allowedUpdates = [
-      'name', 'mobile', 'jobTitle', 'company', 'location', 'bio',
-      'linkedinUrl', 'skills', 'achievements', 'contactPreferences', 'privacySettings'
+      'name', 'email', 'mobile', 'graduationYear', 'department', 'jobTitle', 'company', 'location', 'bio',
+      'linkedinUrl', 'skills', 'achievements', 'experience', 'contactPreferences', 'privacySettings'
     ];
 
     const updates = {};
@@ -274,14 +345,19 @@ router.put('/profile', authenticateToken, async (req, res) => {
 
     const alumni = await Alumni.findByIdAndUpdate(
       req.alumni._id,
-      updates,
-      { new: true, runValidators: true }
+      {
+        pendingUpdates: updates,
+        pendingUpdateStatus: 'pending',
+        pendingUpdateAt: new Date()
+      },
+      { new: true, runValidators: false }
     );
 
     res.json({
       success: true,
-      message: 'Profile updated successfully',
-      alumni: alumni.getPublicProfile()
+      message: 'Changes submitted for admin approval.',
+      alumni: alumni.getSelfProfile(),
+      pendingUpdates: updates
     });
 
   } catch (error) {
@@ -303,4 +379,3 @@ router.post('/logout', (req, res) => {
 });
 
 module.exports = router;
-

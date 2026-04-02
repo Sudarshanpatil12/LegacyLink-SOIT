@@ -1202,7 +1202,7 @@ const alumniData = [
                 marginBottom: '16px',
               }}
             >
-              What Our Alumni Say
+             From the Desk of Our Faculty
             </h2>
             <p 
               style={{
@@ -1213,7 +1213,7 @@ const alumniData = [
                 lineHeight: '1.5',
               }}
             >
-              Hear from our alumni community about their experiences and success stories
+             Perspectives and reflections from the educators behind our students’ success.
             </p>
             <div 
               style={{
@@ -1528,7 +1528,6 @@ const alumniData = [
                     width: '100%',
                     height: '100%',
                     backgroundColor: '#f1f5f9',
-                    display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     color: '#64748b',

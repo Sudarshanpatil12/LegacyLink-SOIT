@@ -1,5 +1,21 @@
 // API service for connecting to the backend
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const resolveApiBaseUrl = () => {
+  if (process.env.REACT_APP_API_URL) {
+    return process.env.REACT_APP_API_URL;
+  }
+
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return 'http://localhost:5001/api';
+    }
+    return `${window.location.origin}/api`;
+  }
+
+  return 'http://localhost:5001/api';
+};
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 class ApiService {
   constructor() {
@@ -25,15 +41,31 @@ class ApiService {
 
     try {
       const response = await fetch(url, config);
-      const data = await response.json();
+      const raw = await response.text();
+      let data = {};
+
+      if (raw) {
+        try {
+          data = JSON.parse(raw);
+        } catch (parseError) {
+          data = { message: raw };
+        }
+      }
 
       if (!response.ok) {
+        if (response.status === 401) {
+          localStorage.removeItem('authToken');
+          localStorage.removeItem('isAdminLoggedIn');
+        }
         throw new Error(data.message || 'Request failed');
       }
 
       return data;
     } catch (error) {
       console.error('API Request Error:', error);
+      if (error instanceof TypeError) {
+        throw new Error(`Unable to reach backend at ${this.baseURL}. Make sure backend is running and accessible.`);
+      }
       throw error;
     }
   }
@@ -71,8 +103,8 @@ class ApiService {
     return this.post('/auth/register', alumniData);
   }
 
-  async loginAlumni(email, password) {
-    return this.post('/auth/login', { email, password });
+  async loginAlumni(identifier, password) {
+    return this.post('/auth/login', { identifier, password });
   }
 
   async loginAdmin(email, password) {
@@ -162,8 +194,24 @@ class ApiService {
     return this.get(endpoint);
   }
 
+  async getAdminAlumniById(id) {
+    return this.get(`/admin/alumni/${id}`);
+  }
+
   async updateAlumniStatus(id, status, reason = '') {
     return this.put(`/admin/alumni/${id}/status`, { status, reason });
+  }
+
+  async updateAdminAlumni(id, alumniData) {
+    return this.put(`/admin/alumni/${id}`, alumniData);
+  }
+
+  async approvePendingAlumniUpdates(id) {
+    return this.put(`/admin/alumni/${id}/updates/approve`, {});
+  }
+
+  async rejectPendingAlumniUpdates(id) {
+    return this.put(`/admin/alumni/${id}/updates/reject`, {});
   }
 
   async deleteAlumni(id) {
@@ -180,7 +228,7 @@ class ApiService {
     return this.put(`/admin/events/${id}/approve`, { isApproved });
   }
 
-  async deleteEvent(id) {
+  async deleteAdminEvent(id) {
     return this.delete(`/admin/events/${id}`);
   }
 
@@ -209,4 +257,3 @@ class ApiService {
 // Create and export a singleton instance
 const apiService = new ApiService();
 export default apiService;
-

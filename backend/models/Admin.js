@@ -55,8 +55,6 @@ const adminSchema = new mongoose.Schema({
 });
 
 // Indexes
-adminSchema.index({ email: 1 });
-adminSchema.index({ username: 1 });
 adminSchema.index({ isActive: 1 });
 
 // Virtual for account lock status
@@ -120,4 +118,3 @@ adminSchema.methods.getSafeProfile = function() {
 };
 
 module.exports = mongoose.model('Admin', adminSchema);
-
